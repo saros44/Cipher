@@ -1,0 +1,654 @@
+/* General styles */
+body {
+    font-family: 'Arial', sans-serif;
+    margin: 0;
+    box-sizing: border-box;
+    background-color: #121921;
+    padding-top: 80px; /* Adjust this value based on the height of your header */
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+    width: 12px; /* Width of the scrollbar */
+}
+
+::-webkit-scrollbar-track {
+    background: #121921; /* Color of the scrollbar track */
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #26394C; /* Color of the scrollbar thumb */
+    border-radius: 10px; /* Rounded corners */
+    border: 3px solid #121921; /* Padding around the thumb */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #5e7ca3; /* Color of the scrollbar thumb when hovered */
+}
+
+/* Header styles */
+header {
+    background-color: rgba(18, 25, 33, 0.8); /* Make the header slightly transparent */
+    color: #ffffff;
+    padding: 10px 0;
+    border-bottom: 2px solid #26394C;
+    position: fixed; /* Make the header fixed */
+    top: 0; /* Position it at the top */
+    width: 100%; /* Ensure it spans the full width of the viewport */
+    z-index: 1000; /* Ensure it stays on top of other elements */
+    backdrop-filter: blur(5px); /* Optional: Adds a blur effect for better readability */
+}
+
+nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+}
+
+nav .logo {
+    max-width: 150px;
+    flex-shrink: 0;
+    padding-left: 20px;
+}
+
+nav .logo img {
+    max-height: 60px;
+    width: auto;
+}
+
+nav ul {
+    list-style-type: none;
+    padding: 15px;
+    display: flex;
+    justify-content: flex-end;
+    margin: 0;
+    width: 50%;
+}
+
+nav ul li {
+    margin: 0 15px;
+}
+
+nav ul li a {
+    color: #fff;
+    text-decoration: none;
+    font-family: "Pixelify sans", sans-serif;
+    font-size: large;
+}
+
+nav ul li a:hover {
+    color: #5e7ca3;
+}
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: rgba(18, 25, 33, 0.8);
+    min-width: 80px;
+    z-index: 1;
+}
+
+.dropdown-content a {
+    color: white;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+}
+
+.dropdown-content a:hover {background-color: rgba(18, 25, 33, 0.8)}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+.dropdown:hover .dropbtn {
+    background-color:  #121921;
+}
+
+/* Hero section styles */
+.hero {
+    position: relative;
+    background: url('/images/rgb.jpg') no-repeat center center;
+    background-size: cover;
+    color: #ffffff;
+    text-align: left;
+    width: 980px;
+    height: 450px;
+    margin: 30px auto;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.hero h1 {
+    font-size: 4em;
+    margin: 0 0 5px;
+}
+
+.hero p {
+    font-size: 1.3em;
+    margin: 0 0 10px;
+}
+
+.hero .button-container {
+    display: flex;
+    gap: 15px; /* Space between the buttons */
+}
+
+/* From Uiverse.io by adamgiebl */
+.cta-button {
+    font-size: 15px;
+    letter-spacing: 2px;
+    text-transform: none;
+    display: inline-block;
+    text-align: center;
+    font-weight: normal;
+    padding: 0.7em 2em;
+    border: 2px solid #007bff;
+    border-radius: 5px;
+    position: relative;
+    color: #007bff;
+    text-decoration: none;
+    transition: 0.3s ease all;
+    z-index: 1;
+    background-color: white;
+}
+
+.cta-button:before {
+    transition: 0.5s all ease;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    right: 50%;
+    bottom: 0;
+    opacity: 0;
+    content: '';
+    background-color: #007bff;
+    z-index: -1;
+    border-radius: 2px; /* Added border-radius */
+}
+
+.cta-button:hover, button:focus {
+    color: white;
+}
+
+.cta-button:hover:before, button:focus:before {
+    transition: 0.5s all ease;
+    left: 0;
+    right: 0;
+    opacity: 1;
+}
+
+.cta-button:active {
+    transform: scale(0.9);
+}
+
+
+/* Content section styles */
+.content {
+    max-width: 980px;
+    margin: 30px auto;
+    padding: 0 20px;
+}
+
+.content h2 {
+    margin-bottom: 25px;
+    color: white;
+}
+
+.steps {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.step {
+    background-color: #192633;
+    border-radius: 12px;
+    padding: 10px;
+    width: calc(16.66% - 13px); /* 6 steps in a row within 980px, considering margins */
+    height: 120px; /* Increased height to accommodate icon and text */
+    border: 2px solid #26394C;
+    display: flex;
+    flex-direction: column; /* Stack elements vertically */
+    align-items: center; /* Center items horizontally */
+    justify-content: center; /* Center items vertically */
+    text-align: center;
+    font-size: small;
+    color: white;
+    box-sizing: border-box;
+}
+
+.step .icon {
+    margin-bottom: 10px; /* Adjust spacing between icon and text */
+}
+
+.step .icon img {
+    max-width: 30px; /* Adjust the size of the icon */
+}
+
+.step span {
+    padding-left: 10px;
+}
+
+/* Services section styles */
+.services {
+    max-width: 980px;
+    margin: 30px auto;
+    padding: 0 10px;
+    color: white;
+}
+
+.service-item {
+    background-color: #192633;
+    border: 2px solid #26394C;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    font-size: small;
+    text-align: justify;
+}
+
+/*encode*/
+.container {
+    text-align: center;
+    color: white;
+}
+
+h1 {
+    font-size: 2em;
+    margin-bottom: 0;
+}
+
+p {
+    margin: 0.5em 0;
+}
+
+.upload-section {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    margin: 20px 0 10px;
+}
+
+.upload-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-right: 20px;
+}
+
+.upload-box, .message-box, .button-section {
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+input[type="file"], textarea {
+    width: 200px;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    background-color: #192633;
+    color: #ffffff;
+}
+
+#max-length {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+    text-align: left;
+    width: 200px;
+    font-size: 0.875rem;   /* Adjust text size to small, 0.875rem is 14px */
+}
+
+
+textarea {
+    height: 100px;
+    resize: none;
+}
+
+/* Key Error Styling */
+#key-error {
+    color: #d9534f; /* Bootstrap's red color for error messages */
+    font-size: 0.875rem; /* Slightly smaller font size for the error message */
+    font-weight: bold;
+    display: none; /* Hidden by default, shown only when there's an error */
+}
+
+.key-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+#key {
+    padding-right: 30px; /* Adjust padding to fit the icon */
+}
+
+#toggle-key {
+    position: absolute;
+    right: 10px;
+    top: 50%; /* Center vertically */
+    transform: translateY(-4px); /* Adjust this value to move the icon down */
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+}
+
+
+#embed-button {
+    background-color: #007bff;
+    color: #ffffff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 100%;
+    max-width: 520px; /* Set a max width for alignment */
+    display: flex;
+    justify-content: center; /* Center the button horizontally */
+
+}
+
+#download-button {
+    background-color: #007bff;
+    color: #ffffff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 220px;
+}
+
+#embed-button:hover, #download-button:hover {
+    background-color: #0056b3;
+}
+
+#key {
+    width: 220px; /* Ensure dropdown width matches image upload width */
+    height: 40px; /* Match the height of the image upload */
+    padding: 10px;
+    margin-top: 17px;
+    margin-bottom: 5px;
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    border-radius: 5px;
+}
+
+/* Image section styles */
+.image-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 250px;
+    width: 280px;
+    background-color: #192633;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 35px;
+}
+
+.resize-icon {
+    width: 50px;
+    height: 50px;
+}
+
+#uploaded-image {
+    display: none; /* Hide the image by default */
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 5px;
+}
+
+#uploaded-image.active {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+#uploaded-image:not(.active) {
+    display: block;
+    width: 50px;
+    height: 50px;
+}
+
+.encoded-image-section {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.encoded-image-section img {
+    width: 100%;
+    max-width: 520px;
+    border-radius: 10px;
+}
+
+.encoded-image-section p {
+    margin-top: 10px;
+    color: #ffffff;
+}
+#compilation-time {
+    font-size: 1em; /* Adjust the font size */
+    font-weight: bold; /* Make the text bold */
+    color: white; /* Change the text color */
+    padding: 10px;
+}
+
+#processing-text {
+    text-align: center;
+    font-size: 1.5em;
+    color: white;
+    margin-top: 20px;
+}
+
+.dot {
+    display: inline-block;
+    opacity: 0;
+}
+
+@keyframes blink {
+    0%, 20%, 100% { opacity: 0; }
+    25%, 45% { opacity: 1; }
+}
+
+.dot:nth-child(1) {
+    animation: blink 1.5s infinite;
+}
+
+.dot:nth-child(2) {
+    animation: blink 1.5s infinite 0.5s;
+}
+
+.dot:nth-child(3) {
+    animation: blink 1.5s infinite 1s;
+}
+
+.histogram-section {
+    text-align: center; /* Center-align the content within this section */
+    width: 100%; /* Ensure the section takes full width of its container */
+    max-width: 1000px; /* Restrict maximum width of the section (optional) */
+    margin: 0 auto; /* Center the section horizontally */
+}
+
+.histogram-canvas {
+    width: 900px; /* Set the width of the canvas */
+    height: 400px; /* Set the height of the canvas */
+    display: block; /* Ensure canvas is treated as a block element for centering */
+    margin: 0 auto; /* Center the canvas horizontally */
+}
+
+
+
+/* decode */
+.decode-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center; /* Optional, for text centering */
+    color: white;
+}
+
+.upload-image {
+    width: 360px;
+    height: 220px;
+    border: 2px dashed #c9d1d9;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0 40px 0;
+    cursor: pointer;
+    background-color: #192633;
+    position: relative;
+    overflow: hidden;
+}
+
+.upload-image:hover {
+    background-color: #1f242d;
+}
+
+.upload-image input {
+    display: none;
+}
+
+.upload-image img {
+    max-width: 40px; /* Initial size for the icon */
+    max-height: 40px; /* Initial size for the icon */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.upload-image img.uploaded {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Ensures the image covers the entire container */
+    max-width: none; /* Override the initial max-width */
+    max-height: none; /* Override the initial max-height */
+    transform: none; /* Remove the translate transformation */
+    top: 0;
+    left: 0;
+}
+
+#key-field {
+    width: 360px; /* Ensure dropdown width matches image upload width */
+    height: 40px; /* Match the height of the image upload */
+    padding: 10px;
+    margin-bottom: 10px;
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    border-radius: 5px;
+}
+
+.key-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+#key-field {
+    padding-right: 30px; /* Adjust padding to fit the icon */
+}
+
+#toggle-key-field {
+    position: absolute;
+    right: 10px;
+    top: 50%; /* Center vertically */
+    transform: translateY(-13px); /* Move down slightly */
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+}
+
+.decode-btn {
+    background-color: #007bff;
+    color: #ffffff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 360px;
+    margin-top: 10px;
+}
+
+.decode-btn:hover {
+    background-color: #0056b3;
+}
+
+.decoded-message {
+    width: 340px;
+    height: 100px;
+    background-color: #192633;
+    border: 2px solid #26394C;
+    border-radius: 8px;
+    margin: 10px 0;
+    padding: 10px;
+    text-align: left; /* Optional, can be changed to center if needed */
+    overflow: auto;
+    word-wrap: break-word; /* Add this line to break long words */
+    color: white;
+}
+
+
+ #decoded-message-heading,
+ #decoded-message,
+ #decode-compilation-time {
+     display: none;
+ }
+
+#decoded-message-heading{
+    padding: 30px 0 5px 0;
+    margin: 0;
+}
+#decode-compilation-time {
+    font-size: 1em; /* Adjust the font size */
+    font-weight: bold; /* Make the text bold */
+    color: white; /* Change the text color */
+    padding: 10px;
+}
+
+
+
+
+/* Footer styles */
+footer {
+    background-color: #121921;
+    color: #fff;
+    text-align: center;
+    padding: 20px 0;
+    border-top: 2px solid #26394C;
+}
+
+footer ul {
+    list-style-type: none;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    margin-top: 15px;
+    margin-bottom: 0;
+}
+
+footer ul li {
+    margin: 0 10px;
+}
+
+footer ul li a {
+    display: block; /* Ensure the <a> tag fills the size of the image */
+}
+
+footer ul li a img {
+    width: 30px; /* Adjust width and height as needed */
+    height: 30px;
+}

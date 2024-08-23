@@ -1,0 +1,29 @@
+<div th:fragments="header">
+<header>
+    <nav>
+        <div class="logo">
+            <a href="/home">
+                <img src="/images/logo.png" alt="Logo"/>
+            </a>
+        </div>
+        <ul>
+            <li><a href="/home">Home</a></li>
+            <li class="dropdown">
+                <a href="#" class="dropbtn">Encode</a>
+                <div class="dropdown-content">
+                    <a href="/encode" onclick="navigateTo('/encode')">Image</a>
+                    <a href="AEncode" onclick="navigateTo('/AEncode')">Audio</a>
+                </div>
+            </li>
+            <li class="dropdown">
+                <a href="#" class="dropbtn">Decode</a>
+                <div class="dropdown-content">
+                    <a href="/decode" onclick="navigateTo('/decode')">Image</a>
+                    <a href="/ADecode" onclick="navigateTo('/ADecode')">Audio</a>
+                </div>
+            </li>
+            <li><a href="/home#footer">Contact</a></li>
+        </ul>
+    </nav>
+</header>
+</div>
