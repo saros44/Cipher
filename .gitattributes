@@ -1,1 +1,2 @@
-*.java linguist-language=true
+* linguist-vendored
+*.java linguist-language=Java
