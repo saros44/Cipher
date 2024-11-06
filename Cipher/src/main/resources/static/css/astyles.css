@@ -1,0 +1,398 @@
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+    width: 12px; /* Width of the scrollbar */
+}
+
+::-webkit-scrollbar-track {
+    background: #121921; /* Color of the scrollbar track */
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #26394C; /* Color of the scrollbar thumb */
+    border-radius: 10px; /* Rounded corners */
+    border: 3px solid #121921; /* Padding around the thumb */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #5e7ca3; /* Color of the scrollbar thumb when hovered */
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    margin: 0;
+    color: white;
+    box-sizing: border-box;
+    background-color: #121921;
+    padding-top: 80px; /* Adjust this value based on the height of your header */
+}
+
+/* Header styles */
+header {
+    background-color: rgba(18, 25, 33, 0.8); /* Slightly transparent header */
+    color: #ffffff;
+    padding: 10px 0;
+    border-bottom: 2px solid #26394C;
+    position: fixed; /* Fixed header */
+    top: 0; /* Position at the top */
+    width: 100%; /* Full width */
+    z-index: 1000; /* Stay on top of other elements */
+    backdrop-filter: blur(5px); /* Optional blur effect */
+}
+
+/* Container styles */
+.container {
+    width: 100vw; /* Use viewport width to fill the screen without overflow */
+    padding: 20px;
+    background-color: rgba(18, 25, 33, 0.8);
+    border-radius: 8px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box; /* Ensures padding is included in the element's width */
+}
+
+/* Navigation styles */
+nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+}
+
+nav .logo {
+    max-width: 150px;
+    flex-shrink: 0;
+    padding-left: 20px;
+}
+
+nav .logo img {
+    max-height: 60px;
+    width: auto;
+}
+
+nav ul {
+    list-style-type: none;
+    padding: 15px;
+    display: flex;
+    justify-content: flex-end;
+    margin: 0;
+    width: 50%;
+}
+
+nav ul li {
+    margin: 0 15px;
+}
+
+nav ul li a {
+    color: #fff;
+    text-decoration: none;
+    font-family: "Pixelify sans", sans-serif;
+    font-size: large;
+}
+
+nav ul li a:hover {
+    color: #5e7ca3;
+}
+
+/* Dropdown styles */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: rgba(18, 25, 33, 0.8);
+    min-width: 80px;
+    z-index: 1;
+}
+
+.dropdown-content a {
+    color: white;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+}
+
+.dropdown-content a:hover {
+    background-color: rgba(18, 25, 33, 0.8);
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+.dropdown:hover .dropbtn {
+    background-color: #121921;
+}
+
+/* Heading styles */
+h1 {
+    font-size: 2em;
+    margin-bottom: 0;
+    margin-top: 0;
+}
+
+/* Paragraph styles */
+p {
+    margin: 0.5em 0;
+}
+
+/* Form styles */
+form {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+#remainingChars {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+    text-align: left;
+    width: 200px;
+    font-size: 0.875rem;   /* Adjust text size to small, 0.875rem is 14px */
+}
+
+/* Label styles */
+label {
+    display: block;
+    margin: 15px 0 5px;
+    color: white;
+}
+
+label[for="key"] {
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+/* Input styles */
+input[type="file"] {
+    width: 340px;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    background-color: #192633;
+    color: #ffffff;
+}
+
+textarea {
+    width: 340px;
+    height: 100px;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    background-color: #192633;
+    color: #ffffff;
+    resize: none; /* Disable resizing */
+}
+
+/* Button styles */
+button {
+    background-color: #007bff;
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 13px;
+    margin-top: 30px;
+    cursor: pointer;
+    border-radius: 4px;
+    width: 360px;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+/* Download button styles */
+#downloadButton {
+    background-color: #007bff;
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 4px;
+    width: 320px;
+}
+
+#downloadButton:hover {
+    background-color: #0056b3; /* Darker color on hover */
+}
+
+/* Encoded file section */
+#encodedFileSection {
+    width: 100%;
+    margin-top: 20px;
+    text-align: center;
+    color: white;
+}
+
+#encodedAudio {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+/* SNR chart section */
+#snrChartSection {
+    display: block;
+    box-sizing: border-box;
+    height: 500px;
+    width: 1000px;
+}
+
+/* SNR description */
+#snrDescription {
+    text-align: left;
+    margin: 20px 0;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+#snrDescription h3 {
+    margin-top: 0;
+    color: #333;
+}
+
+#snrDescription p {
+    line-height: 1.6;
+    color: #666;
+}
+
+#snrDescription ul {
+    list-style-type: disc;
+    padding-left: 20px;
+}
+
+#snrDescription li {
+    margin-bottom: 10px;
+}
+
+/* Audio decode styles */
+#decoded-message-heading {
+    display: none; /* Initially hidden */
+}
+
+.decode-form {
+    width: 100%;
+    max-width: 500px;
+    background-color: #121921;
+    border-radius: 8px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+#decodedMessageSection {
+    width: 340px;
+    height: 110px;
+    background-color: #192633;
+    border: 2px solid #26394C;
+    border-radius: 8px;
+    margin: 10px 0;
+    padding: 10px;
+    text-align: left;
+    overflow: auto;
+    word-wrap: break-word;
+    color: white;
+}
+
+#decoded-message-heading {
+    margin-top: 20px;
+    margin-bottom: 0;
+    padding: 0;
+}
+
+audio {
+    width: 340px;
+    height: 40px;
+}
+
+/* Key input field with icon inside */
+.key-container {
+    position: relative;
+    width: 100%;
+    max-width: 400px; /* Adjust this as needed */
+}
+
+.key-container input {
+    width: 360px;
+    padding: 10px 40px 10px 12px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+.key-container img {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+}
+
+.key-container-a {
+    position: relative;
+    width: 100%;
+    margin-left: 50px;
+    max-width: 400px; /* Adjust this as needed */
+}
+
+.key-container-a input {
+    width: 360px;
+    padding: 10px 40px 10px 12px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+.key-container-a img {
+    position: absolute;
+    right: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+}
+
+/*error handling css*/
+/* Custom SweetAlert2 styles */
+.swal2-custom-popup {
+    font-family: 'Pixelify Sans', sans-serif;
+    border: 2px solid #0056b3;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.swal2-custom-title {
+    color: #333;
+    font-size: 24px;
+}
+
+.swal2-custom-button {
+    background-color: #0056b3 !important;
+    color: #fff !important;
+    font-size: 18px;
+    border-radius: 5px;
+}
+

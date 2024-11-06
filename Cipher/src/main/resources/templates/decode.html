@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decode</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> <!-- SweetAlert2 -->
+</head>
+
+<body>
+<div th:replace="fragments/topnav :: header"></div>
+<main>
+    <section class="decode-section">
+        <h1>Decode Image</h1>
+        <p>Extract a hidden message from an image using LSB</p>
+
+        <label class="upload-image" for="custom-image-upload">
+            <input type="file" id="custom-image-upload" accept="image/*" style="display: none;">
+            <img id="image-preview" src="/icons/uploadd.png" alt="Upload image">
+        </label>
+
+        <div class="key-container">
+            <label for="key-field"></label>
+            <input type="password" id="key-field" placeholder="Encryption key...(16 characters)" required maxlength="16"/>
+            <img id="toggle-key-field" src="/icons/hide.png" alt="Toggle key visibility" />
+        </div>
+        <div id="key-error" style="color: red; display: none;">Invalid key.</div>
+
+        <button class="decode-btn" id="decode-btn">Decode Message</button>
+
+        <!-- Processing text -->
+        <div id="processing-text" style="display: none;">Processing<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
+
+        <h2 id="decoded-message-heading" style="display: none;">Decoded Message:</h2>
+        <div class="decoded-message" id="decoded-message" style="display: none;"></div>
+        <div class="decode-compilation-time" id="decode-compilation-time" style="display: none;">Compilation time: 0 seconds</div>
+    </section>
+</main>
+<script>
+    document.getElementById('custom-image-upload').addEventListener('change', function (event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const previewImage = document.getElementById('image-preview');
+                previewImage.src = e.target.result;
+                previewImage.classList.add('uploaded');
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    document.getElementById('decode-btn').addEventListener('click', async function () {
+        const fileInput = document.getElementById('custom-image-upload');
+        const keyField = document.getElementById('key-field');
+        const keyError = document.getElementById('key-error');
+        const decodedMessageDiv = document.getElementById('decoded-message');
+        const decodedMessageHeading = document.getElementById('decoded-message-heading');
+        const compilationTimeDiv = document.getElementById('decode-compilation-time');
+        const loadingMessage = document.getElementById('processing-text');
+
+        if (fileInput.files.length === 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Image Required',
+                text: 'Please upload an image first.'
+            });
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const key = keyField.value.trim();
+
+        // Validate key length
+        if (key.length !== 16) {
+            keyError.style.display = 'block';
+            return;
+        } else {
+            keyError.style.display = 'none';
+        }
+
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('key', key);
+
+        const startTime = performance.now();
+
+        loadingMessage.style.display = 'block';
+        decodedMessageHeading.style.display = 'none';
+        decodedMessageDiv.style.display = 'none';
+        compilationTimeDiv.style.display = 'none';
+
+        try {
+            const response = await fetch('/api/steganography/decode', {
+                method: 'POST',
+                body: formData
+            });
+
+            const endTime = performance.now();
+            const compilationTime = ((endTime - startTime) / 1000).toFixed(2);
+
+            if (response.ok) {
+                const message = await response.text();
+                if (message.startsWith('Error:')) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Decoding Error',
+                        text: message
+                    });
+                } else {
+                    decodedMessageDiv.textContent = message.trim() === '' ? 'No message found !!!' : message;
+                    decodedMessageHeading.style.display = 'block';
+                    decodedMessageDiv.style.display = 'block';
+                }
+            } else {
+                const errorMessage = await response.text();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Server Error',
+                    text: `Server Error: ${errorMessage}`
+                });
+            }
+
+            loadingMessage.style.display = 'none';
+            compilationTimeDiv.textContent = `Compilation time: ${compilationTime} seconds`;
+            compilationTimeDiv.style.display = 'block';
+
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Network Error',
+                text: `Network Error: ${error.message}`
+            });
+
+            const endTime = performance.now();
+            const compilationTime = ((endTime - startTime) / 1000).toFixed(2);
+
+            loadingMessage.style.display = 'none';
+            compilationTimeDiv.textContent = `Compilation time: ${compilationTime} seconds`;
+            compilationTimeDiv.style.display = 'block';
+        }
+    });
+
+    // Show/Hide key input
+    document.getElementById('toggle-key-field').addEventListener('click', function () {
+        const keyInput = document.getElementById('key-field');
+        const toggleIcon = document.getElementById('toggle-key-field');
+
+        if (keyInput.type === 'password') {
+            keyInput.type = 'text';
+            toggleIcon.src = '/icons/show.png';
+        } else {
+            keyInput.type = 'password';
+            toggleIcon.src = '/icons/hide.png';
+        }
+    });
+</script>
+
+</body>
+
+</html>

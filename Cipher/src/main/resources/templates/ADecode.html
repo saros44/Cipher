@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decode WAV</title>
+    <link rel="stylesheet" href="/css/astyles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+</head>
+<body>
+<div th:replace="fragments/topnav :: header"></div>
+<main>
+    <div class="container">
+        <h1>Decode WAV</h1>
+        <p>Extract a hidden message from WAV file</p>
+        <div class="decode-form">
+            <form id="decodeForm" enctype="multipart/form-data">
+                <label for="inputFile">Select WAV file:</label>
+                <input type="file" id="inputFile" name="audio" accept=".wav" required>
+
+                <label for="key"></label>
+                <div class="key-container-a">
+                    <input type="password" id="key" name="key" placeholder="Encryption key...(8 characters)" required maxlength="8">
+                    <img src="/icons/hide.png" alt="Show/Hide" id="toggleKey" onclick="toggleKeyVisibility()">
+                </div>
+
+                <button type="button" onclick="submitDecodeForm()">Decode Message</button>
+            </form>
+            <div id="audioPreviewSection" style="display: none;">
+                <h2>Audio Preview:</h2>
+                <audio id="audioPreview" controls>
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+            <h2 id="decoded-message-heading" style="display: none;">Decoded Message:</h2>
+            <div id="decodedMessageSection" style="display: none;">
+                <p class="decoded-message" id="decoded-message"></p>
+            </div>
+            <p id="compilationTime" style="display: none;"></p> <!-- New paragraph for compilation time -->
+        </div>
+    </div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+<script>
+    document.getElementById('inputFile').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        const audioPreview = document.getElementById('audioPreview');
+        const audioPreviewSection = document.getElementById('audioPreviewSection');
+
+        if (file) {
+            audioPreview.src = URL.createObjectURL(file);
+            audioPreviewSection.style.display = 'block';
+        } else {
+            audioPreviewSection.style.display = 'none';
+        }
+    });
+
+    function toggleKeyVisibility() {
+        const keyInput = document.getElementById('key');
+        const toggleIcon = document.getElementById('toggleKey');
+
+        if (keyInput.type === "password") {
+            keyInput.type = "text";
+            toggleIcon.src = "/icons/show.png";
+        } else {
+            keyInput.type = "password";
+            toggleIcon.src = "/icons/hide.png";
+        }
+    }
+
+    async function submitDecodeForm() {
+        const fileInput = document.getElementById('inputFile').files[0];
+        const key = document.getElementById('key').value.trim();
+
+        // Validate file and key
+        if (!fileInput) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'No File Selected',
+                text: 'Please select a WAV file.',
+            });
+            return;
+        }
+        if (key.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Key Missing',
+                text: 'Please enter the key.',
+            });
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('audio', fileInput);
+        formData.append('key', key);
+
+        const startTime = performance.now(); // Start time tracking
+
+        try {
+            const response = await fetch('/api/steganography/decode-audio', {
+                method: 'POST',
+                body: formData
+            });
+
+            const message = await response.text();
+
+            const endTime = performance.now(); // End time tracking
+            const duration = (endTime - startTime) / 1000; // Convert to seconds
+            document.getElementById('compilationTime').innerText = `Compilation Time: ${duration.toFixed(2)} seconds`;
+            document.getElementById('compilationTime').style.display = 'block'; // Show compilation time
+
+            if (response.ok) {
+                if (message.startsWith('Audio decoding failed:') || message.startsWith('Error:')) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Decoding Failed',
+                        text: message,
+                    });
+                } else {
+                    const decodedMessageSection = document.getElementById('decodedMessageSection');
+                    const decodedMessageDiv = document.getElementById('decoded-message');
+                    const decodedMessageHeading = document.getElementById('decoded-message-heading');
+
+                    decodedMessageDiv.textContent = message.trim() === '' ? 'No message found !!!' : message;
+                    decodedMessageHeading.style.display = 'block';
+                    decodedMessageSection.style.display = 'block';
+                }
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Server Error',
+                    text: message,
+                });
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Request Failed',
+                text: 'Failed to decode message.',
+            });
+        }
+    }
+</script>
+</body>
+</html>

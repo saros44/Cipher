@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Page</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div th:replace="fragments/topnav :: header"></div>
+<main>
+    <section class="hero">
+        <h1>HIDE TEXT WITHIN A FILE</h1>
+        <p>Use the least significant bit (LSB) algorithm to hide your text in an image pixels and wav files. The perfect way to send secret messages.</p>
+        <div class="button-container">
+            <button class="cta-button" onclick="window.location.href='/encode'">Encode/Image</button>
+            <button class="cta-button" onclick="window.location.href='/AEncode'">Encode/Audio</button>
+        </div>
+    </section>
+
+    <section class="content">
+        <h2>How it works?</h2>
+        <div class="steps">
+            <section class="step">
+                <div class="icon">
+                    <img src="/icons/1.png" alt="Icon 1">
+                </div>
+                <span>Select a file</span>
+            </section>
+            <section class="step">
+                <div class="icon">
+                    <img src="/icons/2.png" alt="Icon 2">
+                </div>
+                <span>Enter your key and message</span>
+            </section>
+            <section class="step">
+                <div class="icon">
+                    <img src="/icons/encode.png" alt="Icon 3">
+                </div>
+                <span>Click encode</span>
+            </section>
+            <section class="step">
+                <div class="icon">
+                    <img src="/icons/download.png" alt="Icon 4">
+                </div>
+                <span>Download the encoded file</span>
+            </section>
+            <section class="step">
+                <div class="icon">
+                    <img src="/icons/decode.png" alt="Icon 5">
+                </div>
+                <span>Your recipient decodes the file</span>
+            </section>
+            <section class="step">
+                <div class="icon">
+                    <img src="/icons/read.png" alt="Icon 6">
+                </div>
+                <span>Your message is revealed</span>
+            </section>
+        </div>
+    </section>
+
+    <section class="services">
+        <h2>Steganography</h2>
+        <div class="service-item">
+            <p>Steganography is the practice of concealing messages or information within other non-secret text or data,
+                making the hidden content undetectable to casual inspection. Unlike cryptography, which only obscures the
+                content of a message, steganography hides the very existence of the message. This technique can be applied
+                to various media, such as images, audio files, and videos, where the hidden message is embedded in a way
+                that it appears as part of the original file.</p>
+        </div>
+    </section>
+    <section class="services">
+        <h2>LSB Algorithm</h2>
+        <div class="service-item">
+            <h3>Simple and easy to understand</h3>
+            <p>The Least Significant Bit (LSB) algorithm is popular in digital steganography due to its simplicity and ease
+                of understanding. By altering the least significant bits of the data within media files like images, it
+                allows for the embedding of secret information with minimal impact on the original file's quality.
+                This straightforward method makes it accessible to those with basic programming knowledge, while also providing
+                a high capacity for hidden data and maintaining computational efficiency. Despite its simplicity, the LSB algorithm
+                can effectively conceal data.</p>
+        </div>
+        <div class="service-item">
+            <h3>Commonly used for educational purposes </h3>
+            <p>The Least Significant Bit (LSB) algorithm is a technique used to hide data
+                within the least significant bits of image pixel values. In this approach, the least significant bit of the red, green,
+                or blue color channels of each pixel is modified to store the bits of a secret message. Since changing the least
+                significant bit results in minimal change to the pixel's overall color, the human eye cannot easily detect the difference.
+                In this implementation, the message is broken down into individual bits, and each bit is sequentially inserted into the
+                LSB of the red channel of each pixel. By embedding the message in this subtle manner, LSB steganography allows for covert
+                communication while preserving the visual integrity of the image.</p>
+        </div>
+    </section>
+
+    <section class="services">
+        <h2>AES Algorithm</h2>
+        <div class="service-item">
+            <h3>AES (Advanced Encryption Standard)</h3>
+            <p>AES is used to encrypt the secret message before embedding it into the image. The encryption is done with a 128-bit key (16 bytes)
+                provided by the user, ensuring the message is secure before it is hidden. The AesUtil.encrypt method takes the secret message and
+                the provided AES key (generated from the user input) to produce an encrypted version of the message. This ensures that even if
+                someone manages to extract the hidden data from the image, it will remain unreadable without the correct AES key to decrypt it.
+                This adds an extra layer of security to the steganography process.</p>
+        </div>
+    </section>
+    <section class="services">
+        <h2>SHA-256 Algorithm</h2>
+        <div class="service-item">
+            <h3>SHA-256 (Secure Hash Algorithm)</h3>
+            <p>SHA-256 is used to convert the provided key into a fixed-length 256-bit (32-byte) hash. The method
+                getKeyBytes takes the input key (a string) and applies the SHA-256 algorithm to generate a secure hash. This hash is used to ensure
+                that the key is transformed into a consistent and secure format before it is embedded into the WAV file for steganography. By using
+                SHA-256, the key becomes highly secure, resistant to brute force attacks, and is guaranteed to always produce the same 256-bit output
+                for the same input, ensuring that the key is both secure and consistent for the encoding and decoding process.</p>
+        </div>
+    </section>
+</main>
+
+<footer id="footer">
+    <p>&copy; 2024 Cipher.</p>
+    <p>"Where Secrets Stay Hidden"</p>
+    <ul>
+        <li><a href="https://www.instagram.com/?hl=en"><img src="/icons/insta.png" alt="Instagram"></a></li>
+        <li><a href="https://www.facebook.com/saso.srsta44" target="_blank"><img src="/icons/fb.png" alt="Facebook"></a></li>
+        <li><a href="https://github.com/saros44" target="_blank"><img src="/icons/github.png" alt="GitHub"></a></li>
+    </ul>
+</footer>
+</body>
+</html>

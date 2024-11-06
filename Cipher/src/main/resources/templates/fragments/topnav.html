@@ -1,0 +1,33 @@
+<div th:fragment="header">
+    <header>
+        <nav>
+            <div class="logo">
+                <a href="/home">
+                    <img src="/images/logo.png" alt="Logo"/>
+                </a>
+            </div>
+            <ul>
+                <li><a href="/home">Home</a></li>
+                <li class="dropdown">
+                    <a href="#" class="dropbtn">Encode</a>
+                    <div class="dropdown-content">
+                        <a href="/encode">Image</a>
+                        <a href="/AEncode">Audio</a>
+                    </div>
+                </li>
+                <li class="dropdown">
+                    <a href="#" class="dropbtn">Decode</a>
+                    <div class="dropdown-content">
+                        <a href="/decode">Image</a>
+                        <a href="/ADecode">Audio</a>
+                    </div>
+                </li>
+                <li><a href="/home#footer">Connect</a></li>
+                <li><a id="logoutBtn" href="/logout" class="logoutBtn">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> <!-- SweetAlert2 -->
+    <!-- Include logsign.js -->
+    <script src="/js/logsign.js"></script>
+</div>

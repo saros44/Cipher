@@ -1,0 +1,135 @@
+/* General Reset */
+*,
+*:before,
+*:after {
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+/* Body Styling */
+body {
+    background-color: #121921;
+    font-family: 'Poppins', sans-serif;
+}
+
+/* Background Shapes */
+.background {
+    width: 430px;
+    height: 520px;
+    position: absolute;
+    transform: translate(-50%, -50%);
+    left: 50%;
+    top: 50%;
+}
+
+.background .shape {
+    position: absolute;
+
+}
+
+.shape:first-child {
+    background: linear-gradient(45deg, #121921, #0f95c6);
+    width: 250px;
+    height: 250px;
+    position: absolute;
+    top: 20%;
+    left: -10%;
+    transform: rotate(-30deg);
+    border-radius: 20% 50% 30% 60% / 30% 40% 60% 50%;
+}
+
+
+.shape:last-child {
+    background: linear-gradient(to right, #121921, #012055);
+    right: -50px;
+    bottom: -50px;
+    border-radius: 5%;
+    height: 180px;
+    width: 200px;
+}
+
+/* Form Styling */
+form {
+    height: 420px;
+    width: 400px;
+    background-color: rgba(255, 255, 255, 0.13);
+    position: absolute;
+    transform: translate(-50%, -50%);
+    top: 50%;
+    left: 50%;
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 40px rgba(8, 7, 16, 0.6);
+    padding: 50px 35px;
+}
+
+form * {
+    color: #ffffff;
+    letter-spacing: 1px;
+    outline: none;
+    border: none;
+}
+
+form h3 {
+    font-size: 32px;
+    font-weight: 500;
+    line-height: 42px;
+    text-align: center;
+    font-family: "Pixelify sans", sans-serif;
+}
+
+/* Input Fields and Labels */
+input {
+    display: block;
+    height: 50px;
+    width: 100%;
+    background-color: rgba(255, 255, 255, 0.07);
+    border-radius: 3px;
+    padding: 0 10px;
+    margin-top: 8px;
+    font-size: 14px;
+    font-weight: 300;
+}
+
+input::placeholder {
+    color: #e5e5e5;
+}
+
+/* Button Styling */
+button {
+    margin-top: 50px;
+    width: 100%;
+    background-color: #007bff;
+    color: white;
+    padding: 15px 0;
+    font-size: 18px;
+    font-weight: 600;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+p {
+    margin-top: 40px;
+}
+
+a {
+    color: #007bff;
+    text-decoration: none;
+}
+.forgot-password {
+    color: #ff0000; /* Change this to match your theme */
+    text-decoration: none; /* Remove underline */
+    font-weight: 600; /* Make the link bold */
+    font-size: 14px; /* Adjust font size as needed */
+    position: relative; /* Enable positioning */
+    top: -20px; /* Adjust this value to move the link up */
+    left: 70px;
+}
+
+
