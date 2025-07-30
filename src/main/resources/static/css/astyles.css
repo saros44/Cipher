@@ -17,18 +17,13 @@
     background-color: #5e7ca3; /* Color of the scrollbar thumb when hovered */
 }
 
-/* Body styles */
 body {
     font-family: 'Arial', sans-serif;
-    color: white;
     margin: 0;
+    color: white;
     box-sizing: border-box;
     background-color: #121921;
     padding-top: 80px; /* Adjust this value based on the height of your header */
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    min-height: 100vh;
 }
 
 /* Header styles */
@@ -46,8 +41,7 @@ header {
 
 /* Container styles */
 .container {
-    width: 100%;
-    max-width: 500px;
+    width: 100vw; /* Use viewport width to fill the screen without overflow */
     padding: 20px;
     background-color: rgba(18, 25, 33, 0.8);
     border-radius: 8px;
@@ -56,6 +50,7 @@ header {
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    box-sizing: border-box; /* Ensures padding is included in the element's width */
 }
 
 /* Navigation styles */
@@ -150,6 +145,15 @@ p {
 form {
     width: 100%;
     margin-bottom: 20px;
+}
+
+#remainingChars {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+    text-align: left;
+    width: 200px;
+    font-size: 0.875rem;   /* Adjust text size to small, 0.875rem is 14px */
 }
 
 /* Label styles */
@@ -347,6 +351,7 @@ audio {
 .key-container-a {
     position: relative;
     width: 100%;
+    margin-left: 50px;
     max-width: 400px; /* Adjust this as needed */
 }
 

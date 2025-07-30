@@ -1,9 +1,6 @@
 package com.example.Cipher.controller;
 
-import com.example.Cipher.service.DecodeService;
-import com.example.Cipher.service.EncodeService;
-import com.example.Cipher.service.WavSteganography;
-import com.example.Cipher.service.WavSteganographyDecoder;
+import com.example.Cipher.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -29,12 +26,20 @@ public class SteganographyController {
     private final DecodeService decodeService;
     private final WavSteganography wavSteganography;
     private final WavSteganographyDecoder wavSteganographyDecoder;
+   // private final VideoEncodeService videoEncodeService;
+    //private final VideoDecodeService videoDecodeService;
 
-    public SteganographyController(EncodeService encodeService, DecodeService decodeService, WavSteganography wavSteganography, WavSteganographyDecoder wavSteganographyDecoder) {
+
+
+    public SteganographyController(EncodeService encodeService, DecodeService decodeService, 
+                                  WavSteganography wavSteganography, WavSteganographyDecoder wavSteganographyDecoder) {
         this.encodeService = encodeService;
         this.decodeService = decodeService;
         this.wavSteganography = wavSteganography;
         this.wavSteganographyDecoder = wavSteganographyDecoder;
+        //this.videoEncodeService = videoEncodeService;
+        //this.videoDecodeService = videoDecodeservice;
+
     }
 
     @PostMapping("/encode")
@@ -138,4 +143,51 @@ public class SteganographyController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred.");
         }
     }
+    
+//    @PostMapping("/encode-video")
+//    public ResponseEntity<byte[]> encodeVideo(@RequestParam("video") MultipartFile video,
+//                                             @RequestParam("message") String message,
+//                                             @RequestParam("key") String key) {
+//        try {
+//            // Encode the message into the video using DCT-based steganography
+//            byte[] encodedVideo = videoEncodeService.encodeMessage(video, message, key);
+//
+//            // Return the encoded video
+//            return ResponseEntity.ok()
+//                    .header(HttpHeaders.CONTENT_TYPE, "video/mp4")
+//                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"encoded_video.mp4\"")
+//                    .body(encodedVideo);
+//        } catch (IllegalArgumentException e) {
+//            // Handle validation errors
+//            logger.error("Invalid input: {}", e.getMessage());
+//            return ResponseEntity.badRequest()
+//                    .body(("Video encoding failed: " + e.getMessage()).getBytes());
+//        } catch (IOException e) {
+//            // Handle IO errors
+//            logger.error("IO error during video encoding: {}", e.getMessage(), e);
+//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+//                    .body(("Video encoding failed due to IO error: " + e.getMessage()).getBytes());
+//        } catch (Exception e) {
+//            // Handle any unexpected errors
+//            logger.error("Unexpected error during video encoding: {}", e.getMessage(), e);
+//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+//                    .body(("Video encoding failed: " + e.getMessage()).getBytes());
+//        }
+//    }
+//
+//    @PostMapping("/decode-video")
+//    public ResponseEntity<String> decodeVideo(@RequestParam("video") MultipartFile video,
+//                                              @RequestParam("key") String key) {
+//        try {
+//            String decodedMessage = videoDecodeService.decodeMessage(video, key);
+//            return ResponseEntity.ok(decodedMessage);
+//        } catch (IllegalArgumentException e) {
+//            logger.error("Invalid input: {}", e.getMessage());
+//            return ResponseEntity.badRequest().body("Video decoding failed: " + e.getMessage());
+//        } catch (Exception e) {
+//            logger.error("Unexpected error during video decoding", e);
+//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+//                    .body("Video decoding failed: " + e.getMessage());
+//        }
+//    }
 }

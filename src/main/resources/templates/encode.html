@@ -13,7 +13,7 @@
 <div th:replace="fragments/topnav :: header"></div>
 <main>
     <div class="container">
-        <h1>Encode</h1>
+        <h1>Encode Image</h1>
         <p>Hide your message inside an image using LSB</p>
 
         <section class="upload-section">
@@ -340,7 +340,7 @@
                 link.download = 'encoded_image.png';
                 link.click();
             });
-
+3
             generateEncodedHistogram(imageBlob);
         } catch (error) {
             console.error(error);

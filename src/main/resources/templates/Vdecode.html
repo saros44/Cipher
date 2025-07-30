@@ -1,25 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Decode</title>
+    <title>Decode Video</title>
     <link rel="stylesheet" href="/css/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
-
 <body>
 <div th:replace="fragments/topnav :: header"></div>
 <main>
     <section class="decode-section">
-        <h1>Decode Image</h1>
-        <p>Extract a hidden message from an image using LSB</p>
+        <h1>Decode Video</h1>
+        <p>Extract hidden messages from video files using DCT steganography</p>
 
-        <label class="upload-image" for="custom-image-upload">
-            <input type="file" id="custom-image-upload" accept="image/*" style="display: none;">
-            <img id="image-preview" src="/icons/uploadd.png" alt="Upload image">
+        <label class="upload-image" for="custom-video-upload">
+            <input type="file" id="custom-video-upload" accept="video/*" style="display: none;">
+            <img id="video-preview" src="/icons/uploadd.png" alt="Upload video">
         </label>
 
         <div class="key-container">
@@ -31,7 +29,6 @@
 
         <button class="decode-btn" id="decode-btn">Decode Message</button>
 
-        <!-- Processing text -->
         <div id="processing-text" style="display: none;">Processing<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
 
         <h2 id="decoded-message-heading" style="display: none;">Decoded Message:</h2>
@@ -40,21 +37,17 @@
     </section>
 </main>
 <script>
-    document.getElementById('custom-image-upload').addEventListener('change', function (event) {
+    document.getElementById('custom-video-upload').addEventListener('change', function (event) {
         const file = event.target.files[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                const previewImage = document.getElementById('image-preview');
-                previewImage.src = e.target.result;
-                previewImage.classList.add('uploaded');
-            };
-            reader.readAsDataURL(file);
+            const previewImage = document.getElementById('video-preview');
+            previewImage.src = '/icons/video.png'; // Optionally use a video icon or thumbnail
+            previewImage.classList.add('uploaded');
         }
     });
 
     document.getElementById('decode-btn').addEventListener('click', async function () {
-        const fileInput = document.getElementById('custom-image-upload');
+        const fileInput = document.getElementById('custom-video-upload');
         const keyField = document.getElementById('key-field');
         const keyError = document.getElementById('key-error');
         const decodedMessageDiv = document.getElementById('decoded-message');
@@ -65,8 +58,8 @@
         if (fileInput.files.length === 0) {
             Swal.fire({
                 icon: 'error',
-                title: 'Image Required',
-                text: 'Please upload an image first.'
+                title: 'Video Required',
+                text: 'Please upload a video first.'
             });
             return;
         }
@@ -74,7 +67,6 @@
         const file = fileInput.files[0];
         const key = keyField.value.trim();
 
-        // Validate key length
         if (key.length !== 16) {
             keyError.style.display = 'block';
             return;
@@ -83,7 +75,7 @@
         }
 
         const formData = new FormData();
-        formData.append('image', file);
+        formData.append('video', file);
         formData.append('key', key);
 
         const startTime = performance.now();
@@ -94,7 +86,7 @@
         compilationTimeDiv.style.display = 'none';
 
         try {
-            const response = await fetch('/api/steganography/decode', {
+            const response = await fetch('/api/steganography/decode-video', {
                 method: 'POST',
                 body: formData
             });
@@ -144,7 +136,6 @@
         }
     });
 
-    // Show/Hide key input
     document.getElementById('toggle-key-field').addEventListener('click', function () {
         const keyInput = document.getElementById('key-field');
         const toggleIcon = document.getElementById('toggle-key-field');
@@ -158,7 +149,5 @@
         }
     });
 </script>
-
 </body>
-
 </html>

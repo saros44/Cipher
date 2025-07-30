@@ -12,7 +12,7 @@
 <div th:replace="fragments/topnav :: header"></div>
 <main>
     <div class="container">
-        <h1>Decode</h1>
+        <h1>Decode WAV</h1>
         <p>Extract a hidden message from WAV file</p>
         <div class="decode-form">
             <form id="decodeForm" enctype="multipart/form-data">
@@ -37,6 +37,7 @@
             <div id="decodedMessageSection" style="display: none;">
                 <p class="decoded-message" id="decoded-message"></p>
             </div>
+            <p id="compilationTime" style="display: none;"></p> <!-- New paragraph for compilation time -->
         </div>
     </div>
 </main>
@@ -94,6 +95,8 @@
         formData.append('audio', fileInput);
         formData.append('key', key);
 
+        const startTime = performance.now(); // Start time tracking
+
         try {
             const response = await fetch('/api/steganography/decode-audio', {
                 method: 'POST',
@@ -101,6 +104,11 @@
             });
 
             const message = await response.text();
+
+            const endTime = performance.now(); // End time tracking
+            const duration = (endTime - startTime) / 1000; // Convert to seconds
+            document.getElementById('compilationTime').innerText = `Compilation Time: ${duration.toFixed(2)} seconds`;
+            document.getElementById('compilationTime').style.display = 'block'; // Show compilation time
 
             if (response.ok) {
                 if (message.startsWith('Audio decoding failed:') || message.startsWith('Error:')) {

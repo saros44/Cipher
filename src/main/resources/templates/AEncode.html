@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/css/astyles.css">
     <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
 <div th:replace="fragments/topnav :: header"></div>
@@ -21,23 +21,25 @@
                 <input type="file" id="inputFile" name="audio" accept=".wav" required onchange="previewAudio()">
 
                 <label for="message"></label>
-                <textarea id="message" name="message" placeholder="Enter the secret message..." required></textarea>
+                <p id="remainingChars">characters: <span id="remainingCount">0</span></p>
+                <textarea id="message" name="message" placeholder="Enter the secret message..." required oninput="updateCharacterCount()"></textarea>
 
                 <label for="key"></label>
                 <div class="key-container">
                     <input type="password" id="key" name="key" placeholder="Encryption key...(8 characters)" required maxlength="8">
-                    <img src="/icons/show.png" alt="Show/Hide" id="toggleKey" onclick="toggleKeyVisibility()">
+                    <img src="/icons/hide.png" alt="Show/Hide" id="toggleKey" onclick="toggleKeyVisibility()">
                 </div>
 
                 <button type="button" onclick="submitEncodeForm()">Encode Message</button>
             </form>
         </section>
         <section id="previewSection" style="display: none;">
-            <h2>Preview Audio File</h2>
+            <h2>Audio Preview</h2>
             <audio id="previewAudio" controls></audio>
         </section>
         <section id="encodedFileSection" style="display: none;">
             <h2>Encoded Audio File</h2>
+            <p id="compilationTime"></p>
             <button id="downloadButton" onclick="downloadFile()">Download</button>
         </section>
         <section id="snrChartSection" style="display: none;">
@@ -50,6 +52,7 @@
 <script>
     let encodedAudioBlob = null;
     let snrChartInstance = null;
+    let maxMessageLength = 0;
 
     function toggleKeyVisibility() {
         const keyInput = document.getElementById('key');
@@ -73,8 +76,31 @@
         if (file) {
             previewAudio.src = URL.createObjectURL(file);
             previewSection.style.display = 'block';
+
+            // Calculate max message length as 50% of the audio file size (example logic)
+            const fileSizeInBytes = file.size;
+            maxMessageLength = Math.floor(fileSizeInBytes / 8 * 0.5); // 50% of max capacity
+            document.getElementById('remainingCount').innerText = maxMessageLength;
+
+            // Reset the message area
+            document.getElementById('message').value = '';
+            updateCharacterCount(); // Update the character count display
         } else {
             previewSection.style.display = 'none';
+        }
+    }
+
+    function updateCharacterCount() {
+        const message = document.getElementById('message').value.trim();
+        const remainingCountElement = document.getElementById('remainingCount');
+        const remainingChars = maxMessageLength - message.length;
+
+        remainingCountElement.innerText = remainingChars >= 0 ? remainingChars : 0;
+
+        // Disable typing if remaining characters are 0
+        if (remainingChars < 0) {
+            document.getElementById('message').value = message.substring(0, maxMessageLength);
+            remainingCountElement.innerText = 0; // Ensure it shows 0
         }
     }
 
@@ -87,11 +113,11 @@
             Swal.fire({
                 icon: 'error',
                 title: 'Missing Information',
-                text: 'Please select an image, enter a message, and enter a key.'
+                text: 'Please select an audio file, enter a message, and enter a key.'
             });
             return;
         }
-        if (key.length === 0 || key.length<8) {
+        if (key.length === 0 || key.length < 8) {
             Swal.fire({
                 icon: 'error',
                 title: 'Server Error',
@@ -105,6 +131,8 @@
         formData.append('message', message);
         formData.append('key', key);
 
+        const startTime = performance.now(); // Start time tracking
+
         fetch('/api/steganography/encode-audio', {
             method: 'POST',
             body: formData
@@ -116,6 +144,10 @@
                 return response.json();
             })
             .then(data => {
+                const endTime = performance.now(); // End time tracking
+                const duration = (endTime - startTime) / 1000; // Convert to seconds
+                document.getElementById('compilationTime').innerText = `Compilation Time: ${duration.toFixed(2)} seconds`;
+
                 if (data.error) {
                     Swal.fire({
                         icon: 'error',
@@ -185,7 +217,6 @@
         createDetailedSNRChart(snrStages);
     }
 
-
     function createDetailedSNRChart(snrStages) {
         const ctx = document.getElementById('snrFlowChart').getContext('2d');
 
@@ -220,66 +251,35 @@
             data: {
                 labels: chartLabels,
                 datasets: [{
-                    label: 'SNR (dB)',
+                    label: 'SNR Levels',
                     data: chartData,
                     borderColor: 'rgba(75, 192, 192, 1)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    borderWidth: 2,
                     fill: false,
-                    lineTension: 0
+                    tension: 0.1
                 }]
             },
             options: {
-                responsive: true,
                 scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'SNR'
+                        }
+                    },
                     x: {
                         title: {
                             display: true,
-                            text: 'Encoding Stages'
-                        },
-                        ticks: {
-                            autoSkip: false
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'SNR (dB)'
-                        },
-                        beginAtZero: true,
-                        suggestedMin: 0,
-                        ticks: {
-                        }
-                    }
-                },
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return `SNR: ${context.raw.toFixed(2)} dB`;
-                            }
+                            text: 'Stages'
                         }
                     }
                 }
             }
         });
 
+        const snrDescription = document.getElementById('snrDescription');
+        snrDescription.innerText = 'SNR (Signal-to-Noise Ratio) provides insights into the quality of the audio after encoding. Higher values indicate better quality.';
         document.getElementById('snrChartSection').style.display = 'block';
-// Add informative description below the chart
-        document.getElementById('snrDescription').innerHTML = `
-    <h3>Understanding the SNR Flow Chart</h3>
-    <p>The Signal-to-Noise Ratio (SNR) flow chart visualizes the quality of the audio signal throughout different stages of the encoding process. The SNR values are measured in decibels (dB), representing the ratio of the signal's strength to the noise level. Higher SNR values indicate better audio quality with less noise interference.</p>
-    <p><strong>Stages:</strong></p>
-    <ul>
-        <li><strong>Initial:</strong> The starting SNR before any modifications are made to the audio file.</li>
-        <li><strong>Key:</strong> SNR after encoding the encryption key into the audio.</li>
-        <li><strong>Message Length:</strong> SNR after encoding the length of the secret message.</li>
-        <li><strong>Message:</strong> SNR after embedding the actual secret message.</li>
-        <li><strong>Delimiter:</strong> SNR after encoding any delimiters or additional markers.</li>
-        <li><strong>Final:</strong> The final SNR of the encoded audio file.</li>
-    </ul>
-    <p>By analyzing the SNR at each stage, you can assess how the quality of the audio is affected by the encoding process and ensure that the modifications remain within acceptable quality levels.</p>
-`;
     }
 </script>
 </body>

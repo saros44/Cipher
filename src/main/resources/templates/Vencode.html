@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encode Video</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+<div th:replace="fragments/topnav :: header"></div>
+<main>
+    <div class="container">
+        <h1>Encode Video</h1>
+        <p>Hide your message inside a video file using DCT steganography</p>
+
+        <section class="upload-section">
+            <div class="upload-container">
+                <div class="upload-box">
+                    <input type="file" id="video-upload" accept="video/*" aria-label="Upload a video to encode">
+                </div>
+                <div class="message-box">
+                    <label for="video-message"></label>
+                    <textarea id="video-message" placeholder="Enter the secret message..." required></textarea>
+                    <div class="key-container">
+                        <label for="video-key"></label>
+                        <input type="password" id="video-key" placeholder="Encryption key (16 characters)" required maxlength="16">
+                        <img id="toggle-video-key" src="/icons/hide.png" alt="Toggle Visibility">
+                    </div>
+                    <p id="video-key-error" style="color: red; display: none; margin: 0">Invalid key.</p>
+                </div>
+            </div>
+            <div class="image-section">
+                <video id="uploaded-video" class="resize-icon" src="" controls style="width: 120px; height: 80px; background: #192633; border-radius: 5px; display: none;"></video>
+                <img id="video-placeholder" src="/icons/select.png" alt="Upload Video" style="width: 50px; height: 50px;">
+            </div>
+        </section>
+        <div class="button-section">
+            <button id="embed-video-button">Encode Message</button>
+        </div>
+
+        <section class="encoded-video-section" style="display: none;">
+            <div>
+                <h2>Here is your encoded video.</h2>
+                <video id="encoded-video" src="" controls style="width: 100%; max-width: 520px; border-radius: 10px;"></video>
+                <p id="video-compilation-time">Compilation time: 0 seconds</p>
+                <button id="download-video-button">Download</button>
+            </div>
+        </section>
+        <div id="video-processing-text" style="display: none;">Processing<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
+    </div>
+</main>
+
+<script>
+    document.getElementById('video-upload').addEventListener('change', function (event) {
+        const file = event.target.files[0];
+        const videoElement = document.getElementById('uploaded-video');
+        const placeholder = document.getElementById('video-placeholder');
+
+        if (file) {
+            videoElement.src = URL.createObjectURL(file);
+            videoElement.style.display = 'block';
+            placeholder.style.display = 'none';
+        } else {
+            videoElement.src = '';
+            videoElement.style.display = 'none';
+            placeholder.style.display = 'block';
+        }
+    });
+
+    document.getElementById('toggle-video-key').addEventListener('click', function () {
+        const keyInput = document.getElementById('video-key');
+        const toggleIcon = document.getElementById('toggle-video-key');
+
+        if (keyInput.type === 'password') {
+            keyInput.type = 'text';
+            toggleIcon.src = '/icons/show.png';
+        } else {
+            keyInput.type = 'password';
+            toggleIcon.src = '/icons/hide.png';
+        }
+    });
+
+    document.getElementById('embed-video-button').addEventListener('click', async function () {
+        const fileInput = document.getElementById('video-upload');
+        const messageInput = document.getElementById('video-message');
+        const keyInput = document.getElementById('video-key');
+        const file = fileInput.files[0];
+        const message = messageInput.value;
+        const key = keyInput.value;
+        const keyError = document.getElementById('video-key-error');
+        const processingText = document.getElementById('video-processing-text');
+
+        if (!file || !message || !key) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Missing Information',
+                text: 'Please select a video, enter a message, and enter a key.'
+            });
+            return;
+        }
+
+        if (key.length !== 16) {
+            keyError.style.display = 'block';
+            return;
+        } else {
+            keyError.style.display = 'none';
+        }
+
+        const formData = new FormData();
+        formData.append('video', file);
+        formData.append('message', message);
+        formData.append('key', key);
+
+        processingText.style.display = 'block';
+
+        try {
+            const startTime = performance.now();
+
+            const response = await fetch('/api/steganography/encode-video', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Encoding Error',
+                    text: errorText || 'Failed to encode the video.'
+                });
+                return;
+            }
+
+            const endTime = performance.now();
+            const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+            const videoBlob = await response.blob();
+            const encodedVideoElement = document.getElementById('encoded-video');
+            encodedVideoElement.src = URL.createObjectURL(videoBlob);
+            document.querySelector('.encoded-video-section').style.display = 'block';
+
+            document.getElementById('video-compilation-time').textContent = `Compilation time: ${duration} seconds`;
+
+            document.getElementById('download-video-button').addEventListener('click', function () {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(videoBlob);
+                link.download = 'encoded_video.mp4';
+                link.click();
+            });
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Network Error',
+                text: `Network Error: ${error.message}`
+            });
+        } finally {
+            processingText.style.display = 'none';
+        }
+    });
+</script>
+</body>
+</html>
