@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
 </head>
 <body>
-th:replace="~{fragments/topnav :: header}"
+<div th:replace="fragments/topnav :: header"></div>
 <main>
     <section class="hero">
         <h1>HIDE TEXT WITHIN A FILE</h1>
@@ -16,6 +16,7 @@ th:replace="~{fragments/topnav :: header}"
         <div class="button-container">
             <button class="cta-button" onclick="window.location.href='/encode'">Encode/Image</button>
             <button class="cta-button" onclick="window.location.href='/AEncode'">Encode/Audio</button>
+            <button class="cta-button" onclick="window.location.href='/Vencode'">Encode/Video</button>
         </div>
     </section>
 
