@@ -352,6 +352,18 @@ textarea {
     overflow: hidden;
     margin-bottom: 35px;
 }
+.video-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 230px;
+    width: 280px;
+    background-color: #192633;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 35px;
+}
+
 .resize-icon {
     width: 50px;
     height: 50px;
@@ -557,4 +569,64 @@ footer ul li a {
 footer ul li a img {
     width: 30px;
     height: 30px;
+}
+
+/*encode video*/
+#uploaded-video {
+    width: 120px;
+    height: 80px;
+    background: #192633;
+    border-radius: 5px;
+    display: none;
+}
+#video-placeholder {
+    width: 50px;
+    height: 50px;
+}
+#encoded-video {
+    width: 100%;
+    max-width: 520px;
+    border-radius: 10px;
+}
+.encoded-video-section {
+    display: none;
+}
+#video-processing-text {
+    display: none;
+}
+
+/*decode video*/
+.upload-video {
+    width: 360px;
+    height: 220px;
+    border: 2px dashed #c9d1d9;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0 40px 0;
+    cursor: pointer;
+    background-color: #192633;
+    position: relative;
+    overflow: hidden;
+}
+.upload-video:hover {
+    background-color: #1f242d;
+}
+.upload-video input {
+    display: none;
+}
+.upload-video img {
+    max-width: 40px;
+    max-height: 40px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+.upload-video video {
+    display: none;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }

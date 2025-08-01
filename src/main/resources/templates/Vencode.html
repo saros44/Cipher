@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
-<div th:replace="fragments/topnav :: header"></div>
+<div th:replace="~{fragments/topnav :: header}"></div>
 <main>
     <div class="container">
         <h1>Encode Video</h1>
@@ -31,9 +31,9 @@
                     <p id="video-key-error" style="color: red; display: none; margin: 0">Invalid key.</p>
                 </div>
             </div>
-            <div class="image-section">
+            <div class="video-section">
                 <video id="uploaded-video" class="resize-icon" src="" controls style="width: 120px; height: 80px; background: #192633; border-radius: 5px; display: none;"></video>
-                <img id="video-placeholder" src="/icons/select.png" alt="Upload Video" style="width: 50px; height: 50px;">
+                <img id="video-placeholder" src="/icons/video.png" alt="Upload Video" style="width: 50px; height: 50px;">
             </div>
         </section>
         <div class="button-section">
@@ -61,10 +61,14 @@
         if (file) {
             videoElement.src = URL.createObjectURL(file);
             videoElement.style.display = 'block';
+            videoElement.classList.add('active');
+            videoElement.style.width = '100%';
+            videoElement.style.height = '100%';
             placeholder.style.display = 'none';
         } else {
             videoElement.src = '';
             videoElement.style.display = 'none';
+            videoElement.classList.remove('active');
             placeholder.style.display = 'block';
         }
     });
