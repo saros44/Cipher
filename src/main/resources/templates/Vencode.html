@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="/css/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Video.js CSS and JS -->
+    <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet">
+    <script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
 </head>
 <body>
 <div th:replace="~{fragments/topnav :: header}"></div>
@@ -43,7 +46,20 @@
         <section class="encoded-video-section" style="display: none;">
             <div>
                 <h2>Here is your encoded video.</h2>
-                <video id="encoded-video" src="" controls style="width: 100%; max-width: 520px; border-radius: 10px;"></video>
+                <video-js
+                        id="encoded-video"
+                        class="vjs-default-skin"
+                        controls
+                        preload="auto"
+                        width="520"
+                        height="300"
+                        style="border-radius: 10px;"
+                        data-setup="{}">
+                    <p class="vjs-no-js">
+                        To view this video please enable JavaScript, and consider upgrading to a web browser that
+                        <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>.
+                    </p>
+                </video-js>
                 <p id="video-compilation-time">Compilation time: 0 seconds</p>
                 <button id="download-video-button">Download</button>
             </div>
@@ -53,6 +69,8 @@
 </main>
 
 <script>
+    let encodedPlayer = null;
+
     document.getElementById('video-upload').addEventListener('change', function (event) {
         const file = event.target.files[0];
         const videoElement = document.getElementById('uploaded-video');
@@ -141,16 +159,25 @@
             const duration = ((endTime - startTime) / 1000).toFixed(2);
 
             const videoBlob = await response.blob();
-            const encodedVideoElement = document.getElementById('encoded-video');
-            encodedVideoElement.src = URL.createObjectURL(videoBlob);
-            document.querySelector('.encoded-video-section').style.display = 'block';
+            const videoUrl = URL.createObjectURL(videoBlob);
 
+            // Initialize or update Video.js player
+            if (!encodedPlayer) {
+                encodedPlayer = videojs('encoded-video');
+            }
+
+            encodedPlayer.src({
+                type: 'video/avi',
+                src: videoUrl
+            });
+
+            document.querySelector('.encoded-video-section').style.display = 'block';
             document.getElementById('video-compilation-time').textContent = `Compilation time: ${duration} seconds`;
 
             document.getElementById('download-video-button').addEventListener('click', function () {
                 const link = document.createElement('a');
-                link.href = URL.createObjectURL(videoBlob);
-                link.download = 'encoded_video.mp4';
+                link.href = videoUrl;
+                link.download = 'encoded_video.avi';
                 link.click();
             });
         } catch (error) {

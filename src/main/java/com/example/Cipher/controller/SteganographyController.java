@@ -142,33 +142,30 @@ public class SteganographyController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred.");
         }
     }
-    
+
+
     @PostMapping("/encode-video")
     public ResponseEntity<byte[]> encodeVideo(@RequestParam("video") MultipartFile video,
-                                             @RequestParam("message") String message,
-                                             @RequestParam("key") String key) {
-        try {
-            // Encode the message into the video using DCT-based steganography
-            byte[] encodedVideo = videoEncodeService.encode(video, message, key);
-
-            // Return the encoded video
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_TYPE, "video/mp4")
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"encoded_video.mp4\"")
-                    .body(encodedVideo);
-        } catch (IllegalArgumentException e) {
-            // Handle validation errors
-            logger.error("Invalid input: {}", e.getMessage());
+                                              @RequestParam("message") String message,
+                                              @RequestParam("key") String key) {
+        if (message == null || message.length() < 5 || message.length() > 50000) {
             return ResponseEntity.badRequest()
-                    .body(("Video encoding failed: " + e.getMessage()).getBytes());
-        } catch (IOException e) {
-            // Handle IO errors
-            logger.error("IO error during video encoding: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(("Video encoding failed due to IO error: " + e.getMessage()).getBytes());
+                    .body("Message length must be between 5 and 50,000 characters.".getBytes());
+        }
+
+        // Log message size for large messages
+        if (message.length() > 5000) {
+            logger.info("Processing large message: {} characters", message.length());
+        }
+
+        try {
+            byte[] encodedVideo = videoEncodeService.encode(video, message, key);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_TYPE, "video/avi")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"encoded_video.avi\"")
+                    .body(encodedVideo);
         } catch (Exception e) {
-            // Handle any unexpected errors
-            logger.error("Unexpected error during video encoding: {}", e.getMessage(), e);
+            logger.error("Video encoding failed for message length: {}", message.length(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(("Video encoding failed: " + e.getMessage()).getBytes());
         }
