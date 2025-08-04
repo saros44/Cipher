@@ -18,6 +18,7 @@
         <label class="upload-video" for="custom-video-upload">
             <input type="file" id="custom-video-upload" accept="video/*" style="display: none;">
             <img id="video-icon" src="/icons/uploadd.png" alt="Upload video" />
+            <img id="avi-preview" src="/images/avi.png" alt="AVI file" />
             <video id="video-preview" style="display:none; width:100%; height:100%; object-fit:cover;" controls></video>
         </label>
 
@@ -42,14 +43,29 @@
         const file = event.target.files[0];
         const previewVideo = document.getElementById('video-preview');
         const videoIcon = document.getElementById('video-icon');
+        const aviPreview = document.getElementById('avi-preview');
+
         if (file) {
-            const url = URL.createObjectURL(file);
-            previewVideo.src = url;
-            previewVideo.load();
-            previewVideo.style.display = 'block';
-            videoIcon.style.display = 'none';
+            const fileName = file.name.toLowerCase();
+            const isAvi = fileName.endsWith('.avi');
+
+            if (isAvi) {
+                // Show AVI image for AVI files
+                aviPreview.style.display = 'block';
+                previewVideo.style.display = 'none';
+                videoIcon.style.display = 'none';
+            } else {
+                // Show video preview for supported formats
+                const url = URL.createObjectURL(file);
+                previewVideo.src = url;
+                previewVideo.load();
+                previewVideo.style.display = 'block';
+                aviPreview.style.display = 'none';
+                videoIcon.style.display = 'none';
+            }
         } else {
             previewVideo.style.display = 'none';
+            aviPreview.style.display = 'none';
             videoIcon.style.display = 'block';
             previewVideo.src = '';
         }

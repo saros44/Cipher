@@ -7,16 +7,13 @@
     <link rel="stylesheet" href="/css/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- Video.js CSS and JS -->
-    <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet">
-    <script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
 </head>
 <body>
 <div th:replace="~{fragments/topnav :: header}"></div>
 <main>
     <div class="container">
         <h1>Encode Video</h1>
-        <p>Hide your message inside a video file using DCT steganography</p>
+        <p>Hide your message inside a video file</p>
 
         <section class="upload-section">
             <div class="upload-container">
@@ -34,8 +31,9 @@
                     <p id="video-key-error" style="color: red; display: none; margin: 0">Invalid key.</p>
                 </div>
             </div>
-            <div class="video-section">
+            <div class="video-section" style="position: relative;">
                 <video id="uploaded-video" class="resize-icon" src="" controls style="width: 120px; height: 80px; background: #192633; border-radius: 5px; display: none;"></video>
+                <img id="uploaded-avi-placeholder" src="/images/avi.png" alt="AVI Video" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 5px; display: none;">
                 <img id="video-placeholder" src="/icons/video.png" alt="Upload Video" style="width: 50px; height: 50px;">
             </div>
         </section>
@@ -45,21 +43,7 @@
 
         <section class="encoded-video-section" style="display: none;">
             <div>
-                <h2>Here is your encoded video.</h2>
-                <video-js
-                        id="encoded-video"
-                        class="vjs-default-skin"
-                        controls
-                        preload="auto"
-                        width="520"
-                        height="300"
-                        style="border-radius: 10px;"
-                        data-setup="{}">
-                    <p class="vjs-no-js">
-                        To view this video please enable JavaScript, and consider upgrading to a web browser that
-                        <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>.
-                    </p>
-                </video-js>
+                <h2>Your video has been successfully encoded!</h2>
                 <p id="video-compilation-time">Compilation time: 0 seconds</p>
                 <button id="download-video-button">Download</button>
             </div>
@@ -69,24 +53,37 @@
 </main>
 
 <script>
-    let encodedPlayer = null;
+    function isAviFile(file) {
+        return file.name.toLowerCase().endsWith('.avi') || file.type === 'video/avi' || file.type === 'video/x-msvideo';
+    }
 
     document.getElementById('video-upload').addEventListener('change', function (event) {
         const file = event.target.files[0];
         const videoElement = document.getElementById('uploaded-video');
+        const aviPlaceholder = document.getElementById('uploaded-avi-placeholder');
         const placeholder = document.getElementById('video-placeholder');
 
         if (file) {
-            videoElement.src = URL.createObjectURL(file);
-            videoElement.style.display = 'block';
-            videoElement.classList.add('active');
-            videoElement.style.width = '100%';
-            videoElement.style.height = '100%';
-            placeholder.style.display = 'none';
+            if (isAviFile(file)) {
+                // Show AVI placeholder filling the entire video-section
+                aviPlaceholder.style.display = 'block';
+                videoElement.style.display = 'none';
+                placeholder.style.display = 'none';
+            } else {
+                // Show video player for supported formats
+                videoElement.src = URL.createObjectURL(file);
+                videoElement.style.display = 'block';
+                videoElement.classList.add('active');
+                videoElement.style.width = '100%';
+                videoElement.style.height = '100%';
+                aviPlaceholder.style.display = 'none';
+                placeholder.style.display = 'none';
+            }
         } else {
             videoElement.src = '';
             videoElement.style.display = 'none';
             videoElement.classList.remove('active');
+            aviPlaceholder.style.display = 'none';
             placeholder.style.display = 'block';
         }
     });
@@ -161,15 +158,6 @@
             const videoBlob = await response.blob();
             const videoUrl = URL.createObjectURL(videoBlob);
 
-            // Initialize or update Video.js player
-            if (!encodedPlayer) {
-                encodedPlayer = videojs('encoded-video');
-            }
-
-            encodedPlayer.src({
-                type: 'video/avi',
-                src: videoUrl
-            });
 
             document.querySelector('.encoded-video-section').style.display = 'block';
             document.getElementById('video-compilation-time').textContent = `Compilation time: ${duration} seconds`;

@@ -54,7 +54,8 @@ public class VideoEncodeService {
         encodeMessageAcrossFrames(frameFiles, encryptedMessage, frameCapacity);
 
         Path outputPath = Files.createTempFile("output_", ".avi");
-        createVideoFromFrames(framesDir.toString(), outputPath.toString(), key);
+        // Pass the original video path for audio extraction
+        createVideoFromFrames(framesDir.toString(), outputPath.toString(), key, tempInputPath.toString());
 
         byte[] result = Files.readAllBytes(outputPath);
         cleanup(tempInputPath, framesDir, outputPath);
@@ -135,38 +136,90 @@ public class VideoEncodeService {
                 .inheritIO().start().waitFor();
     }
 
-    private void createVideoFromFrames(String framesDir, String outputPath, String key) throws Exception {
+    private void createVideoFromFrames(String framesDir, String outputPath, String key, String originalVideoPath) throws Exception {
         // Encode the key in Base64 and embed it in video metadata
         String encodedKey = Base64.getEncoder().encodeToString(key.getBytes());
 
-        // First, extract audio from the original video (if it exists)
-        Path tempInputPath = Paths.get(System.getProperty("java.io.tmpdir"), "temp_input_for_audio.avi");
-        Path audioPath = Paths.get(System.getProperty("java.io.tmpdir"), "extracted_audio.aac");
+        // Extract audio from the original video with better format handling
+        Path audioPath = Paths.get(System.getProperty("java.io.tmpdir"), "extracted_audio.wav");
 
         try {
-            // Try to extract audio from the original video
-            ProcessBuilder audioExtractor = new ProcessBuilder("ffmpeg", "-i", tempInputPath.toString(),
-                "-vn", "-acodec", "copy", audioPath.toString(), "-y");
-            Process audioProcess = audioExtractor.start();
-            int audioExitCode = audioProcess.waitFor();
+            // First, probe the video to check if it has audio streams
+            ProcessBuilder probeBuilder = new ProcessBuilder("ffprobe", "-v", "error",
+                "-select_streams", "a:0", "-show_entries", "stream=codec_name",
+                "-of", "csv=p=0", originalVideoPath);
+            Process probeProcess = probeBuilder.start();
+
+            BufferedReader probeReader = new BufferedReader(new InputStreamReader(probeProcess.getInputStream()));
+            String audioCodec = probeReader.readLine();
+            probeReader.close();
+            int probeExitCode = probeProcess.waitFor();
+
+            System.out.println("Audio probe result - Exit code: " + probeExitCode + ", Codec: " + audioCodec);
+
+            boolean hasAudio = false;
+
+            if (probeExitCode == 0 && audioCodec != null && !audioCodec.trim().isEmpty()) {
+                System.out.println("Found audio stream with codec: " + audioCodec);
+
+                // Try to extract audio - convert to WAV for better compatibility
+                ProcessBuilder audioExtractor = new ProcessBuilder("ffmpeg", "-i", originalVideoPath,
+                    "-vn", // No video
+                    "-acodec", "pcm_s16le", // Convert to PCM WAV
+                    "-ar", "44100", // Standard sample rate
+                    "-ac", "2", // Stereo
+                    audioPath.toString(), "-y");
+
+                // Redirect error output to capture any issues
+                audioExtractor.redirectErrorStream(true);
+                Process audioProcess = audioExtractor.start();
+
+                // Read the output to see any errors
+                BufferedReader audioReader = new BufferedReader(new InputStreamReader(audioProcess.getInputStream()));
+                StringBuilder audioOutput = new StringBuilder();
+                String line;
+                while ((line = audioReader.readLine()) != null) {
+                    audioOutput.append(line).append("\n");
+                }
+                audioReader.close();
+
+                int audioExitCode = audioProcess.waitFor();
+                System.out.println("Audio extraction exit code: " + audioExitCode);
+                System.out.println("Audio extraction output: " + audioOutput.toString());
+
+                // Check if audio file was created and has content
+                if (audioExitCode == 0 && Files.exists(audioPath) && Files.size(audioPath) > 1024) { // At least 1KB
+                    hasAudio = true;
+                    System.out.println("Audio extraction successful. File size: " + Files.size(audioPath) + " bytes");
+                } else {
+                    System.out.println("Audio extraction failed or produced empty file");
+                    if (Files.exists(audioPath)) {
+                        Files.delete(audioPath);
+                    }
+                }
+            } else {
+                System.out.println("No audio stream detected in source video");
+            }
 
             // Create video with frames and include audio if it was extracted successfully
             ProcessBuilder videoBuilder;
-            if (audioExitCode == 0 && Files.exists(audioPath)) {
-                System.out.println("Audio track found, including in encoded video");
+            if (hasAudio) {
+                System.out.println("Creating video with audio track");
                 // Include audio in the final video
                 videoBuilder = new ProcessBuilder("ffmpeg", "-framerate", "29.97",
                     "-i", framesDir + "/frame_%06d.png",
                     "-i", audioPath.toString(),
                     "-c:v", "libxvid",
-                    "-c:a", "aac",
-                    "-map", "0:v:0",
-                    "-map", "1:a:0",
+                    "-c:a", "aac", // Use AAC for better compatibility
+                    "-b:a", "128k", // Set audio bitrate
+                    "-map", "0:v:0", // Map video from first input
+                    "-map", "1:a:0", // Map audio from second input
                     "-metadata", "title=" + encodedKey,
                     "-metadata", "comment=Steganography Video",
+                    "-shortest", // Match shortest stream duration
                     outputPath, "-y");
             } else {
-                System.out.println("No audio track found, creating video without audio");
+                System.out.println("Creating video without audio");
                 // No audio track available, create video-only
                 videoBuilder = new ProcessBuilder("ffmpeg", "-framerate", "29.97",
                     "-i", framesDir + "/frame_%06d.png",
@@ -176,7 +229,25 @@ public class VideoEncodeService {
                     outputPath, "-y");
             }
 
-            videoBuilder.inheritIO().start().waitFor();
+            // Redirect error output for video creation
+            videoBuilder.redirectErrorStream(true);
+            Process videoProcess = videoBuilder.start();
+
+            // Read the output to see any errors
+            BufferedReader videoReader = new BufferedReader(new InputStreamReader(videoProcess.getInputStream()));
+            StringBuilder videoOutput = new StringBuilder();
+            String line;
+            while ((line = videoReader.readLine()) != null) {
+                videoOutput.append(line).append("\n");
+            }
+            videoReader.close();
+
+            int videoExitCode = videoProcess.waitFor();
+            System.out.println("Video creation exit code: " + videoExitCode);
+            if (videoExitCode != 0) {
+                System.out.println("Video creation output: " + videoOutput.toString());
+                throw new Exception("FFmpeg video creation failed with exit code: " + videoExitCode);
+            }
 
             // Clean up temporary audio file
             if (Files.exists(audioPath)) {
@@ -185,11 +256,43 @@ public class VideoEncodeService {
 
         } catch (Exception e) {
             System.out.println("Audio processing failed, creating video without audio: " + e.getMessage());
+            e.printStackTrace();
+
+            // Clean up audio file if it exists
+            if (Files.exists(audioPath)) {
+                try {
+                    Files.delete(audioPath);
+                } catch (IOException ignored) {}
+            }
+
             // Fallback to video-only creation
-            new ProcessBuilder("ffmpeg", "-framerate", "29.97", "-i", framesDir + "/frame_%06d.png",
-                    "-c:v", "libxvid", "-metadata", "title=" + encodedKey,
-                    "-metadata", "comment=Steganography Video", outputPath, "-y")
-                    .inheritIO().start().waitFor();
+            try {
+                ProcessBuilder fallbackBuilder = new ProcessBuilder("ffmpeg", "-framerate", "29.97",
+                    "-i", framesDir + "/frame_%06d.png",
+                    "-c:v", "libxvid",
+                    "-metadata", "title=" + encodedKey,
+                    "-metadata", "comment=Steganography Video",
+                    outputPath, "-y");
+                fallbackBuilder.redirectErrorStream(true);
+                Process fallbackProcess = fallbackBuilder.start();
+
+                BufferedReader fallbackReader = new BufferedReader(new InputStreamReader(fallbackProcess.getInputStream()));
+                StringBuilder fallbackOutput = new StringBuilder();
+                String line;
+                while ((line = fallbackReader.readLine()) != null) {
+                    fallbackOutput.append(line).append("\n");
+                }
+                fallbackReader.close();
+
+                int fallbackExitCode = fallbackProcess.waitFor();
+                if (fallbackExitCode != 0) {
+                    System.out.println("Fallback video creation failed: " + fallbackOutput.toString());
+                    throw new Exception("Both audio and fallback video creation failed");
+                }
+            } catch (Exception fallbackException) {
+                System.out.println("Fallback video creation also failed: " + fallbackException.getMessage());
+                throw new Exception("Complete video creation failure: " + fallbackException.getMessage());
+            }
         }
     }
 

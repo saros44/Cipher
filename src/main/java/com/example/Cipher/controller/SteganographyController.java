@@ -153,6 +153,13 @@ public class SteganographyController {
                     .body("Message length must be between 5 and 50,000 characters.".getBytes());
         }
 
+        // Only allow AVI files
+        String originalFilename = video.getOriginalFilename();
+        if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".avi")) {
+            return ResponseEntity.badRequest()
+                    .body("Only AVI video files are supported for encoding.".getBytes());
+        }
+
         // Log message size for large messages
         if (message.length() > 5000) {
             logger.info("Processing large message: {} characters", message.length());

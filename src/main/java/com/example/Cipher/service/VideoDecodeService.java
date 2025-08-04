@@ -35,7 +35,7 @@ public class VideoDecodeService {
 
         // Verify the provided key matches the embedded key
         if (extractedKey == null || !extractedKey.equals(key)) {
-            throw new IllegalArgumentException("Invalid key - provided key doesn't match the key embedded in video metadata");
+            throw new IllegalArgumentException("Invalid key - provided key doesn't match the key embedded in video");
         }
 
         extractFrames(tempInputPath.toString(), framesDir.toString());
