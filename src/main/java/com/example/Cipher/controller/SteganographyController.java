@@ -145,25 +145,27 @@ public class SteganographyController {
 
 
     @PostMapping("/encode-video")
-    public ResponseEntity<byte[]> encodeVideo(@RequestParam("video") MultipartFile video,
+    public ResponseEntity<Map<String, Object>> encodeVideo(@RequestParam("video") MultipartFile video,
                                               @RequestParam("message") String message,
                                               @RequestParam("key") String key) {
         // Basic message validation - just check it's not empty
         if (message == null || message.trim().isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body("Message cannot be empty.".getBytes());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Message cannot be empty.");
+            return ResponseEntity.badRequest().body(errorResponse);
         }
 
         // Only allow AVI files
         String originalFilename = video.getOriginalFilename();
         if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".avi")) {
-            return ResponseEntity.badRequest()
-                    .body("Only AVI video files are supported for encoding.".getBytes());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Only AVI video files are supported for encoding.");
+            return ResponseEntity.badRequest().body(errorResponse);
         }
 
         try {
             // Let the service calculate and validate capacity
-            byte[] encodedVideo = videoEncodeService.encode(video, message, key);
+            VideoEncodeService.EncodingResult result = videoEncodeService.encodeWithMetrics(video, message, key);
 
             // Log successful encoding with message size
             logger.info("Successfully encoded message of {} characters into video", message.length());
@@ -172,20 +174,25 @@ public class SteganographyController {
             String baseFilename = originalFilename.substring(0, originalFilename.lastIndexOf('.'));
             String outputFilename = baseFilename + "_encoded.avi";
 
+            Map<String, Object> response = new HashMap<>();
+            response.put("encodedVideo", java.util.Base64.getEncoder().encodeToString(result.encodedVideo()));
+            response.put("filename", outputFilename);
+            response.put("qualityMetrics", result.qualityMetrics());
+
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_TYPE, "video/x-msvideo")  // Proper MIME type for AVI
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + outputFilename + "\"")
-                    .header("Content-Length", String.valueOf(encodedVideo.length))
-                    .body(encodedVideo);
+                    .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                    .body(response);
         } catch (IllegalArgumentException e) {
             // Handle capacity exceeded and other validation errors
             logger.error("Video encoding failed - validation error: {}", e.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(("Video encoding failed: " + e.getMessage()).getBytes());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Video encoding failed: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         } catch (Exception e) {
             logger.error("Video encoding failed for message length: {}", message.length(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(("Video encoding failed: " + e.getMessage()).getBytes());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Video encoding failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 
@@ -205,3 +212,4 @@ public class SteganographyController {
         }
     }
 }
+

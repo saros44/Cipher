@@ -10,9 +10,16 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class VideoEncodeService {
+
+    private final VideoQualityMetrics videoQualityMetrics;
+
+    public VideoEncodeService(VideoQualityMetrics videoQualityMetrics) {
+        this.videoQualityMetrics = videoQualityMetrics;
+    }
 
     public byte[] encode(MultipartFile videoFile, String message, String key) throws Exception {
         if (key == null || key.length() < 8) {
@@ -64,6 +71,46 @@ public class VideoEncodeService {
         byte[] result = Files.readAllBytes(outputPath);
         cleanup(tempInputPath, framesDir, outputPath);
         return result;
+    }
+
+    public EncodingResult encodeWithMetrics(MultipartFile videoFile, String message, String key) throws Exception {
+        if (key == null || key.length() < 8) {
+            throw new IllegalArgumentException("Secret key must be at least 8 characters long.");
+        }
+
+        Path tempInputPath = Files.createTempFile("input_", ".avi");
+        Files.copy(videoFile.getInputStream(), tempInputPath, StandardCopyOption.REPLACE_EXISTING);
+
+        // Keep a copy of original for quality comparison
+        Path originalCopyPath = Files.createTempFile("original_copy_", ".avi");
+        Files.copy(tempInputPath, originalCopyPath, StandardCopyOption.REPLACE_EXISTING);
+
+        try {
+            // Encode the video
+            byte[] encodedVideo = encode(videoFile, message, key);
+
+            // Save encoded video temporarily for quality analysis
+            Path encodedTempPath = Files.createTempFile("encoded_temp_", ".avi");
+            Files.write(encodedTempPath, encodedVideo);
+
+            // Calculate quality metrics for first 10 frames
+            Map<String, Object> qualityMetrics = videoQualityMetrics.calculateQualityMetrics(
+                originalCopyPath.toString(),
+                encodedTempPath.toString(),
+                10
+            );
+
+            // Cleanup temporary files
+            Files.deleteIfExists(originalCopyPath);
+            Files.deleteIfExists(encodedTempPath);
+
+            return new EncodingResult(encodedVideo, qualityMetrics);
+        } catch (Exception e) {
+            Files.deleteIfExists(originalCopyPath);
+            throw e;
+        } finally {
+            Files.deleteIfExists(tempInputPath);
+        }
     }
 
     private VideoInfo getVideoInfo(String videoPath) throws Exception {
@@ -298,4 +345,6 @@ public class VideoEncodeService {
             this.height = height;
         }
     }
+
+    public record EncodingResult(byte[] encodedVideo, Map<String, Object> qualityMetrics) {}
 }
