@@ -32,7 +32,7 @@ public class SteganographyController {
 
 
     public SteganographyController(EncodeService encodeService, DecodeService decodeService,
-                                  WavSteganography wavSteganography, WavSteganographyDecoder wavSteganographyDecoder, VideoDecodeService videoDecodeService, VideoEncodeService videoEncodeService) {
+                                   WavSteganography wavSteganography, WavSteganographyDecoder wavSteganographyDecoder, VideoDecodeService videoDecodeService, VideoEncodeService videoEncodeService) {
         this.encodeService = encodeService;
         this.decodeService = decodeService;
         this.wavSteganography = wavSteganography;
@@ -148,9 +148,10 @@ public class SteganographyController {
     public ResponseEntity<byte[]> encodeVideo(@RequestParam("video") MultipartFile video,
                                               @RequestParam("message") String message,
                                               @RequestParam("key") String key) {
-        if (message == null || message.length() < 5 || message.length() > 50000) {
+        // Basic message validation - just check it's not empty
+        if (message == null || message.trim().isEmpty()) {
             return ResponseEntity.badRequest()
-                    .body("Message length must be between 5 and 50,000 characters.".getBytes());
+                    .body("Message cannot be empty.".getBytes());
         }
 
         // Only allow AVI files
@@ -160,17 +161,27 @@ public class SteganographyController {
                     .body("Only AVI video files are supported for encoding.".getBytes());
         }
 
-        // Log message size for large messages
-        if (message.length() > 5000) {
-            logger.info("Processing large message: {} characters", message.length());
-        }
-
         try {
+            // Let the service calculate and validate capacity
             byte[] encodedVideo = videoEncodeService.encode(video, message, key);
+
+            // Log successful encoding with message size
+            logger.info("Successfully encoded message of {} characters into video", message.length());
+
+            // Generate a better filename
+            String baseFilename = originalFilename.substring(0, originalFilename.lastIndexOf('.'));
+            String outputFilename = baseFilename + "_encoded.avi";
+
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_TYPE, "video/avi")
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"encoded_video.avi\"")
+                    .header(HttpHeaders.CONTENT_TYPE, "video/x-msvideo")  // Proper MIME type for AVI
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + outputFilename + "\"")
+                    .header("Content-Length", String.valueOf(encodedVideo.length))
                     .body(encodedVideo);
+        } catch (IllegalArgumentException e) {
+            // Handle capacity exceeded and other validation errors
+            logger.error("Video encoding failed - validation error: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(("Video encoding failed: " + e.getMessage()).getBytes());
         } catch (Exception e) {
             logger.error("Video encoding failed for message length: {}", message.length(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

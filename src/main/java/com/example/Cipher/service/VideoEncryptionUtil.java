@@ -55,8 +55,8 @@ public class VideoEncryptionUtil {
             // Validate Base64 format
             if (!isValidBase64(cleanedData)) {
                 throw new IllegalArgumentException("Invalid Base64 format - message may be corrupted during extraction. " +
-                    "Expected length should be multiple of 4, got: " + cleanedData.length() +
-                    ". Data: '" + cleanedData + "'");
+                        "Expected length should be multiple of 4, got: " + cleanedData.length() +
+                        ". Data: '" + cleanedData + "'");
             }
 
             byte[] encryptedBytes = Base64.getDecoder().decode(cleanedData);
@@ -83,11 +83,11 @@ public class VideoEncryptionUtil {
         } catch (IllegalArgumentException e) {
             if (e.getMessage().contains("Last unit does not have enough valid bits")) {
                 throw new IllegalArgumentException("Invalid Base64 format - message may be corrupted during extraction. " +
-                    "Expected length should be multiple of 4, got: " + encryptedData.length() +
-                    ". Data: '" + encryptedData + "'");
+                        "Expected length should be multiple of 4, got: " + encryptedData.length() +
+                        ". Data: '" + encryptedData + "'");
             }
             throw new IllegalArgumentException("Decryption failed: " + e.getMessage() +
-                ". Encrypted data: '" + encryptedData + "'");
+                    ". Encrypted data: '" + encryptedData + "'");
         } catch (Exception e) {
             throw new RuntimeException("Unexpected error during decryption: " + e.getMessage(), e);
         }
@@ -107,4 +107,3 @@ public class VideoEncryptionUtil {
         return str.matches("^[A-Za-z0-9+/]*={0,2}$");
     }
 }
-
