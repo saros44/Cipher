@@ -694,3 +694,94 @@ footer ul li a img {
 .metrics-summary {
     color: #fff;
 }
+
+
+@media (max-width: 700px) {
+
+    nav {
+        padding: 0 8px;
+        gap: 0;
+    }
+    nav .logo {
+        margin: 10px 0 4px 0;
+        max-width: 110px;
+        padding: 0;
+        align-self: flex-start;
+    }
+    nav .logo img {
+        max-height: 40px;
+    }
+    nav ul {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 0;
+        margin: 0 0 6px 0;
+        gap: 0;
+    }
+    nav ul li {
+        margin: 0 5px;
+    }
+    nav ul li a {
+        font-size: 0.95em;
+    }
+
+    .hero {
+        width: 98vw;
+        height: auto;
+        min-height: 220px;
+        padding: 12px;
+        border-radius: 8px;
+        background-position: center top;
+        justify-content: flex-end;
+    }
+    .hero h1 {
+        font-size: 1.9em;
+        margin-bottom: 12px;
+    }
+    .hero p {
+        font-size: 1em;
+        margin-bottom: 12px;
+    }
+    .button-container {
+        display: flex;
+        gap: 10px;
+        width: 100%;
+        align-items: stretch;
+    }
+    .cta-button {
+        width: 100%;
+        padding: 0.7em 0;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .content, .services {
+        padding: 0 2vw;
+        margin: 15px auto;
+    }
+
+    .steps {
+        flex-direction: row !important;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: space-between;
+    }
+    .step {
+        width: calc(50% - 13px);
+        min-width: 140px;
+        margin-bottom: 10px;
+    }
+
+    .service-item {
+        padding: 12px;
+        font-size: 0.95em;
+    }
+    footer ul {
+        gap: 10px;
+    }
+    footer ul li {
+        margin: 5px 0;
+    }
+}
