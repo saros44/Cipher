@@ -41,6 +41,7 @@
         <div class="button-section">
             <button id="embed-video-button">Encode Message</button>
         </div>
+        <div id="video-processing-text" style="display: none;">Processing<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
 
         <section class="encoded-video-section" style="display: none;">
             <div>
@@ -48,24 +49,23 @@
                 <p id="video-compilation-time">Compilation time: 0 seconds</p>
                 <button id="download-video-button">Download</button>
             </div>
+        </section>
 
-            <!-- Quality Metrics Chart -->
-            <div class="quality-metrics-section" style="margin-top: 20px;">
-                <h3>Video Quality Metrics</h3>
-                <div style="width: 100%; height: 400px; margin: 20px 0;">
-                    <canvas id="qualityChart"></canvas>
+        <!-- Quality Metrics Chart (now separate and below) -->
+        <div class="quality-metrics-section" style="display: none; margin-top: 20px;">
+            <h3>Video Quality Metrics</h3>
+            <div style="width: 100%; height: 400px; margin: 20px 0;">
+                <canvas id="qualityChart"></canvas>
+            </div>
+            <div class="metrics-summary" style="display: flex; justify-content: space-around; margin-top: 10px;">
+                <div>
+                    <strong>Average PSNR:</strong> <span id="avgPSNR">-</span> dB
                 </div>
-                <div class="metrics-summary" style="display: flex; justify-content: space-around; margin-top: 10px;">
-                    <div>
-                        <strong>Average PSNR:</strong> <span id="avgPSNR">-</span> dB
-                    </div>
-                    <div>
-                        <strong>Average SSIM:</strong> <span id="avgSSIM">-</span>
-                    </div>
+                <div>
+                    <strong>Average SSIM:</strong> <span id="avgSSIM">-</span>
                 </div>
             </div>
-        </section>
-        <div id="video-processing-text" style="display: none;">Processing<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
+        </div>
     </div>
 </main>
 
@@ -360,7 +360,7 @@
                 }
             }
         });
-
+        document.querySelector('.quality-metrics-section').style.display = 'block';
         console.log('Chart created successfully');
     }
 </script>
