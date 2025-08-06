@@ -88,15 +88,15 @@ public class VideoEncodeService {
         try {
             // Encode the video
             byte[] encodedVideo = encode(videoFile, message, key);
-
+            
             // Save encoded video temporarily for quality analysis
             Path encodedTempPath = Files.createTempFile("encoded_temp_", ".avi");
             Files.write(encodedTempPath, encodedVideo);
 
             // Calculate quality metrics for first 10 frames
             Map<String, Object> qualityMetrics = videoQualityMetrics.calculateQualityMetrics(
-                originalCopyPath.toString(),
-                encodedTempPath.toString(),
+                originalCopyPath.toString(), 
+                encodedTempPath.toString(), 
                 10
             );
 
