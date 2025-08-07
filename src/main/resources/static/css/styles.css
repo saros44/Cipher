@@ -213,7 +213,7 @@ nav ul li a:hover {
 
 /* Services section styles */
 .services {
-    max-width: 980px;
+    width: 980px;
     margin: 30px auto;
     padding: 0 10px;
     color: white;
@@ -760,6 +760,7 @@ footer ul li a img {
     .content, .services {
         padding: 0 2vw;
         margin: 15px auto;
+        width: 100%;
     }
 
     .steps {
