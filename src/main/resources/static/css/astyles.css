@@ -1,20 +1,20 @@
 /* Custom scrollbar styles */
 ::-webkit-scrollbar {
-    width: 12px; /* Width of the scrollbar */
+    width: 12px;
 }
 
 ::-webkit-scrollbar-track {
-    background: #121921; /* Color of the scrollbar track */
+    background: #121921;
 }
 
 ::-webkit-scrollbar-thumb {
-    background-color: #26394C; /* Color of the scrollbar thumb */
-    border-radius: 10px; /* Rounded corners */
-    border: 3px solid #121921; /* Padding around the thumb */
+    background-color: #26394C;
+    border-radius: 10px;
+    border: 3px solid #121921;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background-color: #5e7ca3; /* Color of the scrollbar thumb when hovered */
+    background-color: #5e7ca3;
 }
 
 body {
@@ -23,25 +23,25 @@ body {
     color: white;
     box-sizing: border-box;
     background-color: #121921;
-    padding-top: 80px; /* Adjust this value based on the height of your header */
+    padding-top: 80px;
 }
 
 /* Header styles */
 header {
-    background-color: rgba(18, 25, 33, 0.8); /* Slightly transparent header */
+    background-color: rgba(18, 25, 33, 0.8);
     color: #ffffff;
     padding: 10px 0;
     border-bottom: 2px solid #26394C;
-    position: fixed; /* Fixed header */
-    top: 0; /* Position at the top */
-    width: 100%; /* Full width */
-    z-index: 1000; /* Stay on top of other elements */
-    backdrop-filter: blur(5px); /* Optional blur effect */
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+    backdrop-filter: blur(5px);
 }
 
 /* Container styles */
 .container {
-    width: 100vw; /* Use viewport width to fill the screen without overflow */
+    width: 100vw;
     padding: 20px;
     background-color: rgba(18, 25, 33, 0.8);
     border-radius: 8px;
@@ -50,7 +50,7 @@ header {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    box-sizing: border-box; /* Ensures padding is included in the element's width */
+    box-sizing: border-box;
 }
 
 /* Navigation styles */
@@ -153,7 +153,7 @@ form {
     color: #555;
     text-align: left;
     width: 200px;
-    font-size: 0.875rem;   /* Adjust text size to small, 0.875rem is 14px */
+    font-size: 0.875rem;
 }
 
 /* Label styles */
@@ -188,7 +188,7 @@ textarea {
     border-radius: 5px;
     background-color: #192633;
     color: #ffffff;
-    resize: none; /* Disable resizing */
+    resize: none;
 }
 
 /* Button styles */
@@ -227,7 +227,7 @@ button:hover {
 }
 
 #downloadButton:hover {
-    background-color: #0056b3; /* Darker color on hover */
+    background-color: #0056b3;
 }
 
 /* Encoded file section */
@@ -278,9 +278,8 @@ button:hover {
     margin-bottom: 10px;
 }
 
-/* Audio decode styles */
 #decoded-message-heading {
-    display: none; /* Initially hidden */
+    display: none;
 }
 
 .decode-form {
@@ -320,11 +319,10 @@ audio {
     height: 40px;
 }
 
-/* Key input field with icon inside */
 .key-container {
     position: relative;
     width: 100%;
-    max-width: 400px; /* Adjust this as needed */
+    max-width: 400px;
 }
 
 .key-container input {
@@ -351,12 +349,12 @@ audio {
 .key-container-a {
     position: relative;
     width: 100%;
-    margin-left: 50px;
-    max-width: 400px; /* Adjust this as needed */
+    max-width: 360px;
+    margin: 0 auto;
 }
 
 .key-container-a input {
-    width: 360px;
+    width: 100%;
     padding: 10px 40px 10px 12px;
     font-size: 16px;
     border: 1px solid #ccc;
@@ -368,7 +366,7 @@ audio {
 
 .key-container-a img {
     position: absolute;
-    right: 30px;
+    right: 12px;
     top: 50%;
     transform: translateY(-50%);
     cursor: pointer;
@@ -396,3 +394,66 @@ audio {
     border-radius: 5px;
 }
 
+@media (max-width: 700px) {
+
+    nav {
+        padding: 0 8px;
+        gap: 0;
+    }
+    nav .logo {
+        margin: 10px 0 4px 0;
+        max-width: 110px;
+        padding: 0;
+        align-self: flex-start;
+    }
+    nav .logo img {
+        max-height: 40px;
+    }
+    nav ul {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 0;
+        margin: 0 0 6px 0;
+        gap: 0;
+    }
+    nav ul li {
+        margin: 0 5px;
+    }
+    nav ul li a {
+        font-size: 0.95em;
+    }
+
+    .container {
+        width: 100%;
+        padding: 10px;
+    }
+
+    input[type="file"],
+    textarea,
+    .key-container input,
+    .key-container-a input,
+    button,
+    #downloadButton,
+    audio,
+    #decodedMessageSection {
+        max-width: 100%;
+    }
+
+    h1 {
+        font-size: 1.2em;
+    }
+
+    #remainingChars {
+        font-size: 0.75rem;
+    }
+
+    #snrChartSection {
+        max-width: 100%;
+    }
+
+    #snrFlowChart {
+        max-height: 250px;
+    }
+}
