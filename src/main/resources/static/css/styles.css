@@ -801,6 +801,40 @@ footer ul li a img {
         margin: 0 auto;
     }
 
+    /*video*/
+    .quality-metrics-section {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        padding: 0 2vw !important;
+        box-sizing: border-box;
+    }
+    .quality-metrics-section h3 {
+        font-size: 1.1em;
+        margin-bottom: 10px;
+    }
+    .quality-metrics-section > div {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 10px 0 !important;
+    }
+    #qualityChart {
+        min-width: 300px !important;
+        width: 90vw !important;
+        max-width: 98vw !important;
+        height: 220px !important;
+        padding: 0 !important;
+    }
+    .metrics-summary {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 8px;
+        font-size: 0.98em;
+        margin-top: 8px !important;
+    }
+    .metrics-summary > div {
+        width: 100%;
+    }
+
     footer ul {
         gap: 10px;
     }
