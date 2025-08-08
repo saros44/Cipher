@@ -228,6 +228,16 @@ nav ul li a:hover {
     text-align: justify;
 }
 
+.crypto-steg-row {
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+}
+.crypto-col, .stego-col {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
 /* Encode section */
 .container {
     text-align: center;
@@ -695,7 +705,6 @@ footer ul li a img {
     color: #fff;
 }
 
-
 @media (max-width: 700px) {
 
     .container {
@@ -777,6 +786,15 @@ footer ul li a img {
         width: calc(50% - 13px);
         min-width: 140px;
         margin-bottom: 10px;
+    }
+
+    .crypto-steg-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .crypto-col, .stego-col {
+        width: 100%;
     }
 
     .service-item {
