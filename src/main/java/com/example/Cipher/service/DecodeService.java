@@ -34,7 +34,7 @@ public class DecodeService {
 
         SecretKey secretKey = new SecretKeySpec(key.getBytes(), "AES");
 
-        // Decode the encrypted message from the image
+        // Decode the encrypted (scrambled) message from the image
         String encryptedMessage = decodeMessageFromImage(encodedImage);
 
         if (encryptedMessage.isEmpty()) {
@@ -42,9 +42,12 @@ public class DecodeService {
             return "Error: No message found.";
         }
 
-        // Decrypt the message using AES
         try {
-            String decryptedMessage = AesUtil.decrypt(encryptedMessage, secretKey);
+            // Unscramble the message bytes before decryption
+            byte[] unscrambled = unscrambleBits(encryptedMessage.getBytes("ISO-8859-1"));
+            String unscrambledMessage = new String(unscrambled, "UTF-8");
+
+            String decryptedMessage = AesUtil.decrypt(unscrambledMessage, secretKey);
 
             // Check if decryption resulted in an empty or invalid message
             if (decryptedMessage.isEmpty() || !isValidMessage()) {
@@ -99,6 +102,19 @@ public class DecodeService {
         }
 
         return message.toString();
+    }
+
+    // Unscramble bits using the inverse of the hardcoded shuffle pattern
+    private byte[] unscrambleBits(byte[] in) {
+        int[] o = { 2, 5, 0, 7, 1, 4, 6, 3 };
+        int[] inv = new int[8];
+        for (int i = 0; i < 8; i++)
+            inv[o[i]] = i;
+        byte[] out = new byte[in.length];
+        for (int i = 0; i < in.length; i++)
+            for (int b = 0; b < 8; b++)
+                out[i] |= ((in[i] >> inv[b]) & 1) << b;
+        return out;
     }
 
     private boolean isValidMessage() {

@@ -27,6 +27,10 @@ public class EncodeService {
         SecretKey key = new SecretKeySpec(secretKey.getBytes(), "AES");
         String encryptedMessage = AesUtil.encrypt(message, key);
 
+        // Scramble the encrypted message bytes
+        byte[] scrambled = scrambleBits(encryptedMessage.getBytes("UTF-8"));
+        String scrambledMessage = new String(scrambled, "ISO-8859-1");
+
         BufferedImage bufferedImage = ImageIO.read(image.getInputStream());
 
         int totalBits = bufferedImage.getWidth() * bufferedImage.getHeight() * 3;
@@ -34,15 +38,15 @@ public class EncodeService {
         int usableBits = totalBits - reservedBits;
         int maxMessageLength = (usableBits / 8) - 1;
 
-        if (encryptedMessage.length() + 1 > maxMessageLength) {
+        if (scrambledMessage.length() + 1 > maxMessageLength) {
             throw new IllegalArgumentException("Message is too long to encode in this image.");
         }
 
         // Encode the AES key in the image
         encodeKeyIntoImage(bufferedImage, secretKey);
 
-        // Encode the encrypted message
-        BufferedImage encodedImage = encodeMessageIntoImage(bufferedImage, encryptedMessage);
+        // Encode the scrambled (encrypted) message
+        BufferedImage encodedImage = encodeMessageIntoImage(bufferedImage, scrambledMessage);
 
         return encodeImageToBytes(encodedImage);
     }
@@ -135,5 +139,15 @@ public class EncodeService {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ImageIO.write(encodedImage, "png", baos);
         return baos.toByteArray();
+    }
+
+    // Scramble bits using a hardcoded shuffle pattern
+    private byte[] scrambleBits(byte[] in) {
+        int[] o = { 2, 5, 0, 7, 1, 4, 6, 3 }; // hardcoded shuffle pattern
+        byte[] out = new byte[in.length];
+        for (int i = 0; i < in.length; i++)
+            for (int b = 0; b < 8; b++)
+                out[i] |= ((in[i] >> o[b]) & 1) << b;
+        return out;
     }
 }
