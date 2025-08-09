@@ -29,10 +29,9 @@ public class SteganographyController {
     private final VideoEncodeService videoEncodeService;
     private final VideoDecodeService videoDecodeService;
 
-
-
     public SteganographyController(EncodeService encodeService, DecodeService decodeService,
-                                   WavSteganography wavSteganography, WavSteganographyDecoder wavSteganographyDecoder, VideoDecodeService videoDecodeService, VideoEncodeService videoEncodeService) {
+            WavSteganography wavSteganography, WavSteganographyDecoder wavSteganographyDecoder,
+            VideoDecodeService videoDecodeService, VideoEncodeService videoEncodeService) {
         this.encodeService = encodeService;
         this.decodeService = decodeService;
         this.wavSteganography = wavSteganography;
@@ -43,8 +42,8 @@ public class SteganographyController {
 
     @PostMapping("/encode")
     public ResponseEntity<byte[]> encode(@RequestParam("image") MultipartFile image,
-                                         @RequestParam("message") String message,
-                                         @RequestParam("key") String key) {
+            @RequestParam("message") String message,
+            @RequestParam("key") String key) {
         try {
             byte[] encodedImage = encodeService.encodeMessage(image, message, key);
             return ResponseEntity.ok()
@@ -62,7 +61,7 @@ public class SteganographyController {
 
     @PostMapping("/decode")
     public ResponseEntity<String> decode(@RequestParam("image") MultipartFile image,
-                                         @RequestParam("key") String key) {
+            @RequestParam("key") String key) {
         try {
             String message = decodeService.decodeMessage(image, key);
             return ResponseEntity.ok(message);
@@ -78,8 +77,8 @@ public class SteganographyController {
 
     @PostMapping("/encode-audio")
     public ResponseEntity<Map<String, Object>> encodeAudio(@RequestParam("audio") MultipartFile audio,
-                                                           @RequestParam("message") String message,
-                                                           @RequestParam("key") String key) {
+            @RequestParam("message") String message,
+            @RequestParam("key") String key) {
         Map<String, Object> response = new HashMap<>();
 
         try {
@@ -119,10 +118,9 @@ public class SteganographyController {
         }
     }
 
-
     @PostMapping("/decode-audio")
     public ResponseEntity<String> decodeAudio(@RequestParam("audio") MultipartFile audio,
-                                              @RequestParam("key") String key) {
+            @RequestParam("key") String key) {
 
         try {
             // Attempt to decode the audio message
@@ -143,11 +141,10 @@ public class SteganographyController {
         }
     }
 
-
     @PostMapping("/encode-video")
     public ResponseEntity<Map<String, Object>> encodeVideo(@RequestParam("video") MultipartFile video,
-                                              @RequestParam("message") String message,
-                                              @RequestParam("key") String key) {
+            @RequestParam("message") String message,
+            @RequestParam("key") String key) {
         // Basic message validation - just check it's not empty
         if (message == null || message.trim().isEmpty()) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -198,7 +195,7 @@ public class SteganographyController {
 
     @PostMapping("/decode-video")
     public ResponseEntity<String> decodeVideo(@RequestParam("video") MultipartFile video,
-                                              @RequestParam("key") String key) {
+            @RequestParam("key") String key) {
         try {
             String decodedMessage = videoDecodeService.decode(video, key);
             return ResponseEntity.ok(decodedMessage);
@@ -212,4 +209,3 @@ public class SteganographyController {
         }
     }
 }
-

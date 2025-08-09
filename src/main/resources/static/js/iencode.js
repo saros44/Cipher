@@ -61,7 +61,7 @@ function displayHistogram(canvasId, histogram, title) {
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: Array.from({length: 256}, (_, i) => i),
+            labels: Array.from({ length: 256 }, (_, i) => i),
             datasets: [{
                 label: 'Red',
                 data: histogram.red,

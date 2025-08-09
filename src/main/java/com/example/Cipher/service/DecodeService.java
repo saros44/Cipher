@@ -27,7 +27,8 @@ public class DecodeService {
 
         // Validate the key length
         if (key.length() != AES_KEY_SIZE) {
-            logger.error("Invalid AES key length. Expected length: {}, Provided length: {}", AES_KEY_SIZE, key.length());
+            logger.error("Invalid AES key length. Expected length: {}, Provided length: {}", AES_KEY_SIZE,
+                    key.length());
             return "Error: Invalid AES key length.";
         }
 
@@ -66,33 +67,41 @@ public class DecodeService {
         int charBits = 0;
         int bitCount = 0;
 
-        for (int y = 0; y < height; y++) {
+        outer: for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 int rgb = encodedImage.getRGB(x, y);
-                int redBit = (rgb >> 16) & 1;
 
-                charBits = (charBits << 1) | redBit;
-                bitCount++;
-
-                if (bitCount >= 8) {
-                    char c = (char) charBits;
-                    if (c == '\0') {
-                        return message.toString();
+                // Extract 1 bit from each channel (R, G, B)
+                for (int channel = 0; channel < 3; channel++) {
+                    int bit;
+                    if (channel == 0) {
+                        bit = (rgb >> 16) & 1; // Red LSB
+                    } else if (channel == 1) {
+                        bit = (rgb >> 8) & 1; // Green LSB
+                    } else {
+                        bit = rgb & 1; // Blue LSB
                     }
-                    message.append(c);
-                    charBits = 0;
-                    bitCount = 0;
+
+                    charBits = (charBits << 1) | bit;
+                    bitCount++;
+
+                    if (bitCount == 8) {
+                        char c = (char) charBits;
+                        if (c == '\0') {
+                            break outer;
+                        }
+                        message.append(c);
+                        charBits = 0;
+                        bitCount = 0;
+                    }
                 }
             }
         }
 
-        // If no null character found, return whatever was decoded
         return message.toString();
     }
 
     private boolean isValidMessage() {
-        // Add your validation logic for the message, if applicable
-        // For example, checking for certain formats or content
-        return true; // Placeholder: modify this based on your requirements
+        return true;
     }
 }

@@ -9,55 +9,59 @@
     <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> <!-- SweetAlert2 -->
 </head>
+
 <body>
-<div th:replace="~{fragments/topnav :: header}"></div>
-<main>
-    <div class="container">
-        <h1>Encode Image</h1>
-        <p>Hide your message inside an image file</p>
+    <div th:replace="~{fragments/topnav :: header}"></div>
+    <main>
+        <div class="container">
+            <h1>Encode Image</h1>
+            <p>Hide your message inside an image file</p>
 
-        <section class="upload-section">
-            <div class="upload-container">
-                <div class="upload-box">
-                    <input type="file" id="image-upload" accept="image/*" aria-label="Upload an image to encode">
-                </div>
-                <div class="message-box">
-                    <span id="max-length" data-max-chars="0"></span>
-                    <label for="secret-message"></label>
-                    <textarea id="secret-message" placeholder="Enter the secret message..." required></textarea>
-                    <div class="key-container">
-                        <label for="key"></label>
-                        <input type="password" id="key" placeholder="Encryption key (16 characters)" required maxlength="16">
-                        <img id="toggle-key" src="/icons/hide.png" alt="Toggle Visibility">
+            <section class="upload-section">
+                <div class="upload-container">
+                    <div class="upload-box">
+                        <input type="file" id="image-upload" accept="image/*" aria-label="Upload an image to encode">
                     </div>
-                    <p id="key-error" style="color: red; display: none; margin: 0">Invalid key.</p>
+                    <div class="message-box">
+                        <span id="max-length" data-max-chars="0"></span>
+                        <label for="secret-message"></label>
+                        <textarea id="secret-message" placeholder="Enter the secret message..." required></textarea>
+                        <div class="key-container">
+                            <label for="key"></label>
+                            <input type="password" id="key" placeholder="Encryption key (16 characters)" required
+                                maxlength="16">
+                            <img id="toggle-key" src="/icons/hide.png" alt="Toggle Visibility">
+                        </div>
+                        <p id="key-error" style="color: red; display: none; margin: 0">Invalid key.</p>
+                    </div>
                 </div>
+                <div class="image-section">
+                    <img id="uploaded-image" class="resize-icon" src="/icons/select.png" alt="Upload Image">
+                </div>
+            </section>
+            <div class="button-section">
+                <button id="embed-button">Encode Message</button>
             </div>
-            <div class="image-section">
-                <img id="uploaded-image" class="resize-icon" src="/icons/select.png" alt="Upload Image">
+            <div id="processing-text" style="display: none;">Processing<span class="dot">.</span><span
+                    class="dot">.</span><span class="dot">.</span></div>
+            <section class="encoded-image-section" style="display: none;">
+                <div>
+                    <h2>Here is your encoded image.</h2>
+                    <img id="encoded-image" src="" alt="Encoded Image">
+                    <p id="compilation-time">Compilation time: 0 seconds</p>
+                    <button id="download-button">Download</button>
+                </div>
+            </section>
+            <div class="histogram-section" style="display: none;">
+                <h2 style="margin-top: 40px;">RGB Histogram</h2>
+                <canvas id="histogram-encoded" width="900" height="400"></canvas>
             </div>
-        </section>
-        <div class="button-section">
-            <button id="embed-button">Encode Message</button>
         </div>
-        <div id="processing-text" style="display: none;">Processing<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
-        <section class="encoded-image-section" style="display: none;">
-            <div>
-                <h2>Here is your encoded image.</h2>
-                <img id="encoded-image" src="" alt="Encoded Image">
-                <p id="compilation-time">Compilation time: 0 seconds</p>
-                <button id="download-button">Download</button>
-            </div>
-        </section>
-        <div class="histogram-section" style="display: none;">
-            <h2 style="margin-top: 40px;">RGB Histogram</h2>
-            <canvas id="histogram-encoded" width="900" height="400"></canvas>
-        </div>
-    </div>
-</main>
+    </main>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/js/iencode.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/js/iencode.js"></script>
 
 </body>
+
 </html>

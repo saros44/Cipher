@@ -29,7 +29,11 @@ public class EncodeService {
 
         BufferedImage bufferedImage = ImageIO.read(image.getInputStream());
 
-        int maxMessageLength = (bufferedImage.getWidth() * bufferedImage.getHeight() * 3) / 8;
+        int totalBits = bufferedImage.getWidth() * bufferedImage.getHeight() * 3;
+        int reservedBits = AES_KEY_SIZE;
+        int usableBits = totalBits - reservedBits;
+        int maxMessageLength = (usableBits / 8) - 1;
+
         if (encryptedMessage.length() + 1 > maxMessageLength) {
             throw new IllegalArgumentException("Message is too long to encode in this image.");
         }
@@ -83,26 +87,44 @@ public class EncodeService {
         int messageIndex = 0;
         int bitIndex = 0;
 
-        for (int y = 0; y < height; y++) {
+        outer: for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 int rgb = image.getRGB(x, y);
                 int red = (rgb >> 16) & 0xFF;
                 int green = (rgb >> 8) & 0xFF;
                 int blue = rgb & 0xFF;
 
-                if (messageIndex < message.length()) {
-                    int bit = (message.charAt(messageIndex) >> (7 - bitIndex)) & 1;
-                    red = (red & 0xFE) | bit;
-
-                    rgb = (red << 16) | (green << 8) | blue;
-                    bitIndex++;
-                    if (bitIndex == 8) {
-                        bitIndex = 0;
-                        messageIndex++;
+                // Encode 1 bit in each channel (R, G, B)
+                for (int channel = 0; channel < 3; channel++) {
+                    if (messageIndex < message.length()) {
+                        int bit = (message.charAt(messageIndex) >> (7 - bitIndex)) & 1;
+                        if (channel == 0) {
+                            red = (red & 0xFE) | bit;
+                        } else if (channel == 1) {
+                            green = (green & 0xFE) | bit;
+                        } else {
+                            blue = (blue & 0xFE) | bit;
+                        }
+                        bitIndex++;
+                        if (bitIndex == 8) {
+                            bitIndex = 0;
+                            messageIndex++;
+                        }
                     }
                 }
 
-                encodedImage.setRGB(x, y, rgb);
+                int newRgb = (red << 16) | (green << 8) | blue;
+                encodedImage.setRGB(x, y, newRgb);
+
+                if (messageIndex >= message.length()) {
+                    // Copy the rest of the image as is
+                    for (int yy = y; yy < height; yy++) {
+                        for (int xx = (yy == y ? x + 1 : 0); xx < width; xx++) {
+                            encodedImage.setRGB(xx, yy, image.getRGB(xx, yy));
+                        }
+                    }
+                    break outer;
+                }
             }
         }
 
