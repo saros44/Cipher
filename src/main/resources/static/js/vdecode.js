@@ -1,0 +1,134 @@
+document.getElementById('custom-video-upload').addEventListener('change', function (event) {
+    const file = event.target.files[0];
+    const previewVideo = document.getElementById('video-preview');
+    const videoIcon = document.getElementById('video-icon');
+    const aviPreview = document.getElementById('avi-preview');
+
+    if (file) {
+        const fileName = file.name.toLowerCase();
+        const isAvi = fileName.endsWith('.avi');
+
+        if (isAvi) {
+            // Show AVI image for AVI files
+            aviPreview.style.display = 'block';
+            previewVideo.style.display = 'none';
+            videoIcon.style.display = 'none';
+        } else {
+            // Show video preview for supported formats
+            const url = URL.createObjectURL(file);
+            previewVideo.src = url;
+            previewVideo.load();
+            previewVideo.style.display = 'block';
+            aviPreview.style.display = 'none';
+            videoIcon.style.display = 'none';
+        }
+    } else {
+        previewVideo.style.display = 'none';
+        aviPreview.style.display = 'none';
+        videoIcon.style.display = 'block';
+        previewVideo.src = '';
+    }
+});
+
+document.getElementById('decode-btn').addEventListener('click', async function () {
+    const fileInput = document.getElementById('custom-video-upload');
+    const keyField = document.getElementById('key-field');
+    const keyError = document.getElementById('key-error');
+    const decodedMessageDiv = document.getElementById('decoded-message');
+    const decodedMessageHeading = document.getElementById('decoded-message-heading');
+    const compilationTimeDiv = document.getElementById('decode-compilation-time');
+    const loadingMessage = document.getElementById('processing-text');
+
+    if (fileInput.files.length === 0) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Video Required',
+            text: 'Please upload a video first.'
+        });
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const key = keyField.value.trim();
+
+    if (key.length !== 16) {
+        keyError.style.display = 'block';
+        return;
+    } else {
+        keyError.style.display = 'none';
+    }
+
+    const formData = new FormData();
+    formData.append('video', file);
+    formData.append('key', key);
+
+    const startTime = performance.now();
+
+    loadingMessage.style.display = 'block';
+    decodedMessageHeading.style.display = 'none';
+    decodedMessageDiv.style.display = 'none';
+    compilationTimeDiv.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/steganography/decode-video', {
+            method: 'POST',
+            body: formData
+        });
+
+        const endTime = performance.now();
+        const compilationTime = ((endTime - startTime) / 1000).toFixed(2);
+
+        if (response.ok) {
+            const message = await response.text();
+            if (message.startsWith('Error:')) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Decoding Error',
+                    text: message
+                });
+            } else {
+                decodedMessageDiv.textContent = message.trim() === '' ? 'No message found !!!' : message;
+                decodedMessageHeading.style.display = 'block';
+                decodedMessageDiv.style.display = 'block';
+            }
+        } else {
+            const errorMessage = await response.text();
+            Swal.fire({
+                icon: 'error',
+                title: 'Server Error',
+                text: `Server Error: ${errorMessage}`
+            });
+        }
+
+        loadingMessage.style.display = 'none';
+        compilationTimeDiv.textContent = `Compilation time: ${compilationTime} seconds`;
+        compilationTimeDiv.style.display = 'block';
+
+    } catch (error) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Network Error',
+            text: `Network Error: ${error.message}`
+        });
+
+        const endTime = performance.now();
+        const compilationTime = ((endTime - startTime) / 1000).toFixed(2);
+
+        loadingMessage.style.display = 'none';
+        compilationTimeDiv.textContent = `Compilation time: ${compilationTime} seconds`;
+        compilationTimeDiv.style.display = 'block';
+    }
+});
+
+document.getElementById('toggle-key-field').addEventListener('click', function () {
+    const keyInput = document.getElementById('key-field');
+    const toggleIcon = document.getElementById('toggle-key-field');
+
+    if (keyInput.type === 'password') {
+        keyInput.type = 'text';
+        toggleIcon.src = '/icons/show.png';
+    } else {
+        keyInput.type = 'password';
+        toggleIcon.src = '/icons/hide.png';
+    }
+});

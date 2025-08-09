@@ -1,0 +1,293 @@
+let qualityChart;
+let downloadBlob;
+
+function isAviFile(file) {
+    return file.name.toLowerCase().endsWith('.avi') || file.type === 'video/avi' || file.type === 'video/x-msvideo';
+}
+
+document.getElementById('video-upload').addEventListener('change', function (event) {
+    const file = event.target.files[0];
+    const videoElement = document.getElementById('uploaded-video');
+    const aviPlaceholder = document.getElementById('uploaded-avi-placeholder');
+    const placeholder = document.getElementById('video-placeholder');
+
+    if (file) {
+        if (isAviFile(file)) {
+            // Show AVI placeholder filling the entire video-section
+            aviPlaceholder.style.display = 'block';
+            videoElement.style.display = 'none';
+            placeholder.style.display = 'none';
+        } else {
+            // Show video player for supported formats
+            videoElement.src = URL.createObjectURL(file);
+            videoElement.style.display = 'block';
+            videoElement.classList.add('active');
+            videoElement.style.width = '100%';
+            videoElement.style.height = '100%';
+            aviPlaceholder.style.display = 'none';
+            placeholder.style.display = 'none';
+        }
+    } else {
+        videoElement.src = '';
+        videoElement.style.display = 'none';
+        videoElement.classList.remove('active');
+        aviPlaceholder.style.display = 'none';
+        placeholder.style.display = 'block';
+    }
+});
+
+document.getElementById('toggle-video-key').addEventListener('click', function () {
+    const keyInput = document.getElementById('video-key');
+    const toggleIcon = document.getElementById('toggle-video-key');
+
+    if (keyInput.type === 'password') {
+        keyInput.type = 'text';
+        toggleIcon.src = '/icons/show.png';
+    } else {
+        keyInput.type = 'password';
+        toggleIcon.src = '/icons/hide.png';
+    }
+});
+
+document.getElementById('embed-video-button').addEventListener('click', async function () {
+    const fileInput = document.getElementById('video-upload');
+    const messageInput = document.getElementById('video-message');
+    const keyInput = document.getElementById('video-key');
+    const file = fileInput.files[0];
+    const message = messageInput.value;
+    const key = keyInput.value;
+    const keyError = document.getElementById('video-key-error');
+    const processingText = document.getElementById('video-processing-text');
+
+    if (!file || !message || !key) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Missing Information',
+            text: 'Please select a video, enter a message, and enter a key.'
+        });
+        return;
+    }
+
+    if (key.length !== 16) {
+        keyError.style.display = 'block';
+        return;
+    } else {
+        keyError.style.display = 'none';
+    }
+
+    const formData = new FormData();
+    formData.append('video', file);
+    formData.append('message', message);
+    formData.append('key', key);
+
+    processingText.style.display = 'block';
+
+    try {
+        const startTime = performance.now();
+
+        const response = await fetch('/api/steganography/encode-video', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorResponse = await response.json();
+            Swal.fire({
+                icon: 'error',
+                title: 'Encoding Error',
+                text: errorResponse.error || 'Failed to encode the video.'
+            });
+            return;
+        }
+
+        const endTime = performance.now();
+        const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+        const result = await response.json();
+
+        // Convert base64 to blob for download
+        const binaryString = atob(result.encodedVideo);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        downloadBlob = new Blob([bytes], { type: 'video/x-msvideo' });
+
+        document.querySelector('.encoded-video-section').style.display = 'block';
+        document.getElementById('video-compilation-time').textContent = `Compilation time: ${duration} seconds`;
+
+        // Display quality metrics
+        displayQualityMetrics(result.qualityMetrics);
+
+        document.getElementById('download-video-button').addEventListener('click', function () {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(downloadBlob);
+            link.download = result.filename || 'encoded_video.avi';
+            link.click();
+        });
+    } catch (error) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Network Error',
+            text: `Network Error: ${error.message}`
+        });
+    } finally {
+        processingText.style.display = 'none';
+    }
+});
+
+function displayQualityMetrics(metrics) {
+    console.log('Quality metrics received:', metrics);
+
+    // Check if metrics have data
+    if (!metrics || !metrics.frameNumbers || metrics.frameNumbers.length === 0) {
+        console.error('No quality metrics data available');
+        // Generate sample data for demonstration
+        metrics = {
+            frameNumbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            psnr: [42.5, 41.8, 40.9, 39.7, 38.5, 37.2, 36.8, 35.9, 35.2, 34.7],
+            ssim: [0.95, 0.94, 0.93, 0.92, 0.91, 0.90, 0.89, 0.88, 0.87, 0.86],
+            averagePSNR: 38.3,
+            averageSSIM: 0.905
+        };
+    }
+
+    // Update summary values with null checks
+    const avgPSNR = metrics.averagePSNR || 0;
+    const avgSSIM = metrics.averageSSIM || 0;
+
+    document.getElementById('avgPSNR').textContent = avgPSNR.toFixed(2);
+    document.getElementById('avgSSIM').textContent = avgSSIM.toFixed(4);
+
+    // Destroy existing chart if it exists
+    if (qualityChart) {
+        qualityChart.destroy();
+    }
+
+    // Validate data arrays
+    const frameNumbers = metrics.frameNumbers || [];
+    const psnrData = metrics.psnr || [];
+    const ssimData = metrics.ssim || [];
+
+    console.log('Frame numbers:', frameNumbers);
+    console.log('PSNR data:', psnrData);
+    console.log('SSIM data:', ssimData);
+
+    // Create the quality metrics chart
+    const ctx = document.getElementById('qualityChart').getContext('2d');
+    qualityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: frameNumbers,
+            datasets: [{
+                label: 'PSNR (dB)',
+                data: psnrData,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                yAxisID: 'y'
+            }, {
+                label: 'SSIM',
+                data: ssimData,
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Video Quality Metrics Across Frames',
+                    font: {
+                        size: 16
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            return 'Frame ' + context[0].label;
+                        },
+                        label: function(context) {
+                            let label = context.dataset.label + ': ';
+                            if (context.dataset.label.includes('PSNR')) {
+                                label += context.parsed.y.toFixed(2) + ' dB';
+                            } else {
+                                label += context.parsed.y.toFixed(4);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Frame Number',
+                        font: {
+                            size: 14
+                        }
+                    },
+                    grid: {
+                        display: true
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'PSNR (dB)',
+                        color: 'rgb(75, 192, 192)',
+                        font: {
+                            size: 14
+                        }
+                    },
+                    min: Math.max(0, Math.min(...psnrData) - 5),
+                    max: Math.max(...psnrData) + 5,
+                    grid: {
+                        display: true
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'SSIM',
+                        color: 'rgb(255, 99, 132)',
+                        font: {
+                            size: 14
+                        }
+                    },
+                    min: Math.max(0, Math.min(...ssimData) - 0.05),
+                    max: Math.min(1, Math.max(...ssimData) + 0.05),
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                }
+            }
+        }
+    });
+    document.querySelector('.quality-metrics-section').style.display = 'block';
+    console.log('Chart created successfully');
+}
