@@ -165,9 +165,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', function (event) {
-            event.preventDefault(); // Prevent default action on click
+            event.preventDefault();
 
-            // Show confirmation popup using SweetAlert2
             Swal.fire({
                 title: 'Are you sure?',
                 text: 'Please confirm if you want to logout',
@@ -179,28 +178,31 @@ document.addEventListener('DOMContentLoaded', function () {
                 cancelButtonText: 'No'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // If confirmed, proceed with the logout request
                     fetch('/logout', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
-                        }
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: ''
                     })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.status === 'success') {
-                                // Clear localStorage or sessionStorage (if used)
-                                localStorage.clear();
-                                sessionStorage.clear();
-
-                                // Redirect to the login page
+                        .then(async response => {
+                            // Try to parse JSON, fallback to redirect if not JSON
+                            try {
+                                const data = await response.json();
+                                if (data.status === 'success') {
+                                    localStorage.clear();
+                                    sessionStorage.clear();
+                                    window.location.href = '/login';
+                                } else {
+                                    Swal.fire({
+                                        icon: 'error',
+                                        title: 'Logout Failed',
+                                        text: data.message || 'Logout failed. Please try again.',
+                                    });
+                                }
+                            } catch (e) {
+                                // If not JSON, just redirect
                                 window.location.href = '/login';
-                            } else {
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Logout Failed',
-                                    text: 'Logout failed. Please try again.',
-                                });
                             }
                         })
                         .catch(error => {
@@ -212,7 +214,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             });
                         });
                 }
-                // If user clicks "No, stay logged in", do nothing and remain on the current page
             });
         });
     }

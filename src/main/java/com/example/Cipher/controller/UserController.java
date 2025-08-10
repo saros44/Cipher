@@ -91,6 +91,11 @@ public class UserController {
         return response;
     }
 
+    @GetMapping("/logout")
+    public String logoutRedirect() {
+        return "redirect:/login";
+    }
+
     @PostMapping("/logout")
     @ResponseBody
     public Map<String, Object> logout(HttpSession session) {
