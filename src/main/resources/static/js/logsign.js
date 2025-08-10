@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Function to display error messages
-// Function to clear error messages
+    // Function to clear error messages
     function clearErrorMessage() {
         const errorMessage = document.getElementById('errorMessage');
         if (errorMessage) {
@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
 
-// Login form validation and submission
+    // Login form validation and submission
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', function (event) {

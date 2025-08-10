@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -15,22 +16,24 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, PasswordEncoder passwordEncoder) {
         this.userService = userService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @GetMapping("/signup")
     public String showSignupForm(Model model) {
         model.addAttribute("user", new User());
-        return "signup"; // Refers to signup.html in resources/templates
+        return "signup";
     }
 
     @PostMapping("/signup")
     @ResponseBody
     public Map<String, Object> signup(@RequestParam("email") String email,
-                                      @RequestParam("password") String password,
-                                      HttpSession session) {
+            @RequestParam("password") String password,
+            HttpSession session) {
         Map<String, Object> response = new HashMap<>();
 
         // Check if the user already exists
@@ -64,7 +67,6 @@ public class UserController {
         return response;
     }
 
-
     @GetMapping("/login")
     public String showLoginForm() {
         return "login";
@@ -73,11 +75,11 @@ public class UserController {
     @PostMapping("/login")
     @ResponseBody
     public Map<String, Object> login(@RequestParam("email") String email,
-                                     @RequestParam("password") String password,
-                                     HttpSession session) {
+            @RequestParam("password") String password,
+            HttpSession session) {
         Map<String, Object> response = new HashMap<>();
         User user = userService.findByEmail(email);
-        if (user != null && user.getPassword().equals(password)) {
+        if (user != null && passwordEncoder.matches(password, user.getPassword())) { // Use matches()
             session.setAttribute("loggedInUser", user); // Set user in session
             response.put("status", "success");
             response.put("message", "Login successful!");
@@ -88,7 +90,6 @@ public class UserController {
         }
         return response;
     }
-
 
     @PostMapping("/logout")
     @ResponseBody

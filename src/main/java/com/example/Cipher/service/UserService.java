@@ -2,22 +2,23 @@ package com.example.Cipher.service;
 
 import com.example.Cipher.model.User;
 import com.example.Cipher.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 public class UserService {
 
-
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder; // Add this
 
-
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder; // Add this
     }
 
     // Save a new user with encrypted password
     public void saveUser(User user) {
-//        user.setPassword(passwordEncoder.encode(user.getPassword())); // Encrypt password before saving
+        user.setPassword(passwordEncoder.encode(user.getPassword())); // Hash password
         userRepository.save(user);
     }
 
