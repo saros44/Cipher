@@ -145,6 +145,7 @@ p {
 form {
     width: 100%;
     margin-bottom: 20px;
+    margin-top: 10px;
 }
 
 #remainingChars {
@@ -400,15 +401,18 @@ audio {
         padding: 0 8px;
         gap: 0;
     }
+
     nav .logo {
         margin: 10px 0 4px 0;
         max-width: 110px;
         padding: 0;
         align-self: flex-start;
     }
+
     nav .logo img {
         max-height: 40px;
     }
+
     nav ul {
         width: 100%;
         flex-direction: row;
@@ -418,9 +422,11 @@ audio {
         margin: 0 0 6px 0;
         gap: 0;
     }
+
     nav ul li {
         margin: 0 5px;
     }
+
     nav ul li a {
         font-size: 0.95em;
     }

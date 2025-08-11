@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,37 +9,39 @@
     <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
+
 <body>
-<div th:replace="~{fragments/topnav :: header}"></div>
-<main>
-    <section class="decode-section">
-        <h1>Decode Video</h1>
-        <p>Extract hidden messages from video file</p>
+    <div th:replace="~{fragments/topnav :: header}"></div>
+    <main>
+        <section class="decode-section">
+            <h1>Decode Video</h1>
+            <p>Extract hidden messages from a video file</p>
 
-        <label class="upload-video" for="custom-video-upload">
-            <input type="file" id="custom-video-upload" accept="video/*" style="display: none;">
-            <img id="video-icon" src="/icons/uploadd.png" alt="Upload video" />
-            <img id="avi-preview" src="/images/avi.png" alt="AVI file" />
-            <video id="video-preview" style="display:none; width:100%; height:100%; object-fit:cover;" controls></video>
-        </label>
+            <div class="upload-video">
+                <input type="file" id="custom-video-upload" accept="video/*">
+            </div>
 
-        <div class="key-container">
-            <label for="key-field"></label>
-            <input type="password" id="key-field" placeholder="Encryption key...(16 characters)" required maxlength="16"/>
-            <img id="toggle-key-field" src="/icons/hide.png" alt="Toggle key visibility" />
-        </div>
-        <div id="key-error" style="color: red; display: none;">Invalid key.</div>
+            <div class="key-container">
+                <label for="key-field"></label>
+                <input type="password" id="key-field" placeholder="Encryption key...(16 characters)" required
+                    maxlength="16" />
+                <img id="toggle-key-field" src="/icons/hide.png" alt="Toggle key visibility" />
+            </div>
+            <div id="key-error" style="color: red; display: none;">Invalid key.</div>
 
-        <button class="decode-btn" id="decode-btn">Decode Message</button>
+            <button class="decode-btn" id="decode-btn">Decode Message</button>
 
-        <div id="processing-text" style="display: none;">Processing<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
+            <div id="processing-text" style="display: none;">Processing<span class="dot">.</span><span
+                    class="dot">.</span><span class="dot">.</span></div>
 
-        <h2 id="decoded-message-heading" style="display: none;">Decoded Message:</h2>
-        <div class="decoded-message" id="decoded-message" style="display: none;"></div>
-        <div class="decode-compilation-time" id="decode-compilation-time" style="display: none;">Compilation time: 0 seconds</div>
-    </section>
-</main>
+            <h2 id="decoded-message-heading" style="display: none;">Decoded Message:</h2>
+            <div class="decoded-message" id="decoded-message" style="display: none;"></div>
+            <div class="decode-compilation-time" id="decode-compilation-time" style="display: none;">Compilation time: 0
+                seconds</div>
+        </section>
+    </main>
 
-<script src="/js/vdecode.js"></script>
+    <script src="/js/vdecode.js"></script>
 </body>
+
 </html>

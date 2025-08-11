@@ -11,6 +11,10 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import org.springframework.web.multipart.MultipartFile;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 @Service
 public class VideoEncodeService {
@@ -19,6 +23,82 @@ public class VideoEncodeService {
 
     public VideoEncodeService(VideoQualityMetrics videoQualityMetrics) {
         this.videoQualityMetrics = videoQualityMetrics;
+    }
+
+    public MultipartFile convertToAviIfNeeded(MultipartFile video) throws Exception {
+        String originalFilename = video.getOriginalFilename();
+        String lowerName = originalFilename != null ? originalFilename.toLowerCase() : "";
+
+        if (lowerName.endsWith(".avi")) {
+            return video;
+        }
+
+        // Save uploaded file to temp
+        Path tempInput = Files.createTempFile("input_upload_", lowerName.substring(lowerName.lastIndexOf('.')));
+        Files.copy(video.getInputStream(), tempInput, StandardCopyOption.REPLACE_EXISTING);
+
+        // Prepare temp AVI output
+        Path tempAvi = Files.createTempFile("converted_", ".avi");
+
+        ProcessBuilder pb = new ProcessBuilder(
+                "ffmpeg", "-i", tempInput.toString(),
+                "-c:v", "libxvid", "-q:v", "2", "-c:a", "copy",
+                tempAvi.toString(), "-y");
+        pb.inheritIO();
+        Process proc = pb.start();
+        int exit = proc.waitFor();
+
+        Files.deleteIfExists(tempInput);
+
+        if (exit != 0) {
+            Files.deleteIfExists(tempAvi);
+            throw new IllegalArgumentException("Failed to convert video to AVI format.");
+        }
+
+        byte[] aviBytes = Files.readAllBytes(tempAvi);
+        MultipartFile aviFile = new MultipartFile() {
+            @Override
+            public String getName() {
+                return "video";
+            }
+
+            @Override
+            public String getOriginalFilename() {
+                return "converted.avi";
+            }
+
+            @Override
+            public String getContentType() {
+                return "video/x-msvideo";
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return aviBytes.length == 0;
+            }
+
+            @Override
+            public long getSize() {
+                return aviBytes.length;
+            }
+
+            @Override
+            public byte[] getBytes() {
+                return aviBytes;
+            }
+
+            @Override
+            public java.io.InputStream getInputStream() {
+                return new java.io.ByteArrayInputStream(aviBytes);
+            }
+
+            @Override
+            public void transferTo(java.io.File dest) throws IOException {
+                Files.write(dest.toPath(), aviBytes);
+            }
+        };
+        Files.deleteIfExists(tempAvi);
+        return aviFile;
     }
 
     public byte[] encode(MultipartFile videoFile, String message, String key) throws Exception {
@@ -48,7 +128,8 @@ public class VideoEncodeService {
         System.out.println("Total required pixels: " + requiredPixels);
 
         if (requiredPixels > frameCapacity * framesNeeded) {
-            throw new Exception("Message too long. Required: " + requiredPixels + " pixels, Available: " + (frameCapacity * framesNeeded) + " pixels");
+            throw new Exception("Message too long. Required: " + requiredPixels + " pixels, Available: "
+                    + (frameCapacity * framesNeeded) + " pixels");
         }
 
         // Extract only the specific frames we need to modify
@@ -66,7 +147,8 @@ public class VideoEncodeService {
 
         // Create output video using selective frame replacement
         Path outputPath = Files.createTempFile("output_", ".avi");
-        createVideoWithSelectiveFrameReplacement(tempInputPath.toString(), framesDir.toString(), outputPath.toString(), key, framesNeeded);
+        createVideoWithSelectiveFrameReplacement(tempInputPath.toString(), framesDir.toString(), outputPath.toString(),
+                key, framesNeeded);
 
         byte[] result = Files.readAllBytes(outputPath);
         cleanup(tempInputPath, framesDir, outputPath);
@@ -88,17 +170,16 @@ public class VideoEncodeService {
         try {
             // Encode the video
             byte[] encodedVideo = encode(videoFile, message, key);
-            
+
             // Save encoded video temporarily for quality analysis
             Path encodedTempPath = Files.createTempFile("encoded_temp_", ".avi");
             Files.write(encodedTempPath, encodedVideo);
 
             // Calculate quality metrics for first 10 frames
             Map<String, Object> qualityMetrics = videoQualityMetrics.calculateQualityMetrics(
-                originalCopyPath.toString(), 
-                encodedTempPath.toString(), 
-                10
-            );
+                    originalCopyPath.toString(),
+                    encodedTempPath.toString(),
+                    10);
 
             // Cleanup temporary files
             Files.deleteIfExists(originalCopyPath);
@@ -191,7 +272,8 @@ public class VideoEncodeService {
             int charsInThisFrame = Math.min(charsPerFrame, totalChars - charIndex);
             int endCharIndex = charIndex + charsInThisFrame;
 
-            System.out.println("Frame " + (frameIndex + 1) + ": encoding characters " + charIndex + " to " + (endCharIndex - 1));
+            System.out.println(
+                    "Frame " + (frameIndex + 1) + ": encoding characters " + charIndex + " to " + (endCharIndex - 1));
 
             // Encode characters for this frame
             while (charIndex < endCharIndex && pixelIndex < frameCapacity) {
@@ -216,11 +298,11 @@ public class VideoEncodeService {
 
                     // Use high contrast encoding for better survival through compression
                     if (bit == 1) {
-                        red = 245;   // Very high value for '1'
+                        red = 245; // Very high value for '1'
                         green = 245;
                         blue = 245;
                     } else {
-                        red = 10;    // Very low value for '0'
+                        red = 10; // Very low value for '0'
                         green = 10;
                         blue = 10;
                     }
@@ -234,29 +316,34 @@ public class VideoEncodeService {
 
                 // Progress logging
                 if (charIndex % 2000 == 0) {
-                    System.out.println("Encoded " + charIndex + "/" + totalChars + " characters (Frame: " + (frameIndex + 1) + ")");
+                    System.out.println("Encoded " + charIndex + "/" + totalChars + " characters (Frame: "
+                            + (frameIndex + 1) + ")");
                 }
             }
 
             // Save the modified frame
             javax.imageio.ImageIO.write(currentFrame, "png", frameFiles[frameIndex]);
-            System.out.println("Frame " + (frameIndex + 1) + " completed with " + (charIndex - (endCharIndex - charsInThisFrame)) + " characters, " + pixelIndex + " pixels used");
+            System.out.println("Frame " + (frameIndex + 1) + " completed with "
+                    + (charIndex - (endCharIndex - charsInThisFrame)) + " characters, " + pixelIndex + " pixels used");
         }
 
-        System.out.println("Message encoding completed across " + framesNeeded + " frames. Total characters encoded: " + charIndex);
+        System.out.println("Message encoding completed across " + framesNeeded + " frames. Total characters encoded: "
+                + charIndex);
     }
 
     private void createVideoWithSelectiveFrameReplacement(String originalVideoPath, String modifiedFramesDir,
-                                                          String outputPath, String key, int modifiedFrameCount) throws Exception {
+            String outputPath, String key, int modifiedFrameCount) throws Exception {
         // Encode the key in Base64 and embed it in video metadata
         String encodedKey = Base64.getEncoder().encodeToString(key.getBytes());
 
-        // Use fallback method immediately for better reliability with multi-frame encoding
-        createVideoWithMinimalCompression(originalVideoPath, modifiedFramesDir, outputPath, encodedKey, modifiedFrameCount);
+        // Use fallback method immediately for better reliability with multi-frame
+        // encoding
+        createVideoWithMinimalCompression(originalVideoPath, modifiedFramesDir, outputPath, encodedKey,
+                modifiedFrameCount);
     }
 
     private void createVideoWithMinimalCompression(String originalVideoPath, String modifiedFramesDir,
-                                                   String outputPath, String encodedKey, int modifiedFrameCount) throws Exception {
+            String outputPath, String encodedKey, int modifiedFrameCount) throws Exception {
         System.out.println("Using fallback method with minimal compression");
 
         // Use highest quality settings and lossless compression where possible
@@ -328,7 +415,10 @@ public class VideoEncodeService {
         for (Path path : paths) {
             if (Files.isDirectory(path)) {
                 Files.walk(path).sorted(Comparator.reverseOrder()).forEach(p -> {
-                    try { Files.delete(p); } catch (IOException ignored) {}
+                    try {
+                        Files.delete(p);
+                    } catch (IOException ignored) {
+                    }
                 });
             } else {
                 Files.deleteIfExists(path);
@@ -346,5 +436,6 @@ public class VideoEncodeService {
         }
     }
 
-    public record EncodingResult(byte[] encodedVideo, Map<String, Object> qualityMetrics) {}
+    public record EncodingResult(byte[] encodedVideo, Map<String, Object> qualityMetrics) {
+    }
 }

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,47 +10,51 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
+
 <body>
-<div th:replace="~{fragments/topnav :: header}"></div>
-<main>
-    <div class="container">
-        <h1>Encode WAV</h1>
-        <p>Hide your message inside a WAV file</p>
-        <section>
-            <form id="encodeForm" enctype="multipart/form-data">
-                <label for="inputFile">Select WAV file:</label>
-                <input type="file" id="inputFile" name="audio" accept=".wav,.mp3" required onchange="previewAudio()">
+    <div th:replace="~{fragments/topnav :: header}"></div>
+    <main>
+        <div class="container">
+            <h1>Encode WAV</h1>
+            <p>Hide your message inside an audio file</p>
+            <section>
+                <form id="encodeForm" enctype="multipart/form-data">
+                    <input type="file" id="inputFile" name="audio" accept=".wav,.mp3" required
+                        onchange="previewAudio()">
 
-                <label for="message"></label>
-                <p id="remainingChars">characters: <span id="remainingCount">0</span></p>
-                <textarea id="message" name="message" placeholder="Enter the secret message..." required oninput="updateCharacterCount()"></textarea>
+                    <label for="message"></label>
+                    <p id="remainingChars">characters: <span id="remainingCount">0</span></p>
+                    <textarea id="message" name="message" placeholder="Enter the secret message..." required
+                        oninput="updateCharacterCount()"></textarea>
 
-                <label for="key"></label>
-                <div class="key-container">
-                    <input type="password" id="key" name="key" placeholder="Encryption key...(8 characters)" required maxlength="8">
-                    <img src="/icons/hide.png" alt="Show/Hide" id="toggleKey" onclick="toggleKeyVisibility()">
-                </div>
+                    <label for="key"></label>
+                    <div class="key-container">
+                        <input type="password" id="key" name="key" placeholder="Encryption key...(8 characters)"
+                            required maxlength="8">
+                        <img src="/icons/hide.png" alt="Show/Hide" id="toggleKey" onclick="toggleKeyVisibility()">
+                    </div>
 
-                <button type="button" onclick="submitEncodeForm()">Encode Message</button>
-            </form>
-        </section>
-        <section id="previewSection" style="display: none;">
-            <h2>Audio Preview</h2>
-            <audio id="previewAudio" controls></audio>
-        </section>
-        <section id="encodedFileSection" style="display: none;">
-            <h2>Encoded Audio File</h2>
-            <p id="compilationTime"></p>
-            <button id="downloadButton" onclick="downloadFile()">Download</button>
-        </section>
-        <section id="snrChartSection" style="display: none;">
-            <h2>SNR Flow Chart</h2>
-            <canvas id="snrFlowChart"></canvas>
-            <p id="snrDescription"></p>
-        </section>
-    </div>
-</main>
+                    <button type="button" onclick="submitEncodeForm()">Encode Message</button>
+                </form>
+            </section>
+            <section id="previewSection" style="display: none;">
+                <h2>Audio Preview</h2>
+                <audio id="previewAudio" controls></audio>
+            </section>
+            <section id="encodedFileSection" style="display: none;">
+                <h2>Encoded Audio File</h2>
+                <p id="compilationTime"></p>
+                <button id="downloadButton" onclick="downloadFile()">Download</button>
+            </section>
+            <section id="snrChartSection" style="display: none;">
+                <h2>SNR Flow Chart</h2>
+                <canvas id="snrFlowChart"></canvas>
+                <p id="snrDescription"></p>
+            </section>
+        </div>
+    </main>
 
-<script src="/js/aencode.js"></script>
+    <script src="/js/aencode.js"></script>
 </body>
+
 </html>

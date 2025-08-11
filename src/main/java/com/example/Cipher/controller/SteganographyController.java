@@ -145,30 +145,25 @@ public class SteganographyController {
     public ResponseEntity<Map<String, Object>> encodeVideo(@RequestParam("video") MultipartFile video,
             @RequestParam("message") String message,
             @RequestParam("key") String key) {
-        // Basic message validation - just check it's not empty
         if (message == null || message.trim().isEmpty()) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("error", "Message cannot be empty.");
             return ResponseEntity.badRequest().body(errorResponse);
         }
 
-        // Only allow AVI files
         String originalFilename = video.getOriginalFilename();
-        if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".avi")) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Only AVI video files are supported for encoding.");
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
 
         try {
-            // Let the service calculate and validate capacity
-            VideoEncodeService.EncodingResult result = videoEncodeService.encodeWithMetrics(video, message, key);
+            // Move conversion logic to service
+            MultipartFile aviFile = videoEncodeService.convertToAviIfNeeded(video);
 
-            // Log successful encoding with message size
+            VideoEncodeService.EncodingResult result = videoEncodeService.encodeWithMetrics(aviFile, message, key);
+
             logger.info("Successfully encoded message of {} characters into video", message.length());
 
-            // Generate a better filename
-            String baseFilename = originalFilename.substring(0, originalFilename.lastIndexOf('.'));
+            String baseFilename = (originalFilename != null && originalFilename.contains("."))
+                    ? originalFilename.substring(0, originalFilename.lastIndexOf('.'))
+                    : "video";
             String outputFilename = baseFilename + "_encoded.avi";
 
             Map<String, Object> response = new HashMap<>();
@@ -179,8 +174,8 @@ public class SteganographyController {
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_TYPE, "application/json")
                     .body(response);
+
         } catch (IllegalArgumentException e) {
-            // Handle capacity exceeded and other validation errors
             logger.error("Video encoding failed - validation error: {}", e.getMessage());
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("error", "Video encoding failed: " + e.getMessage());

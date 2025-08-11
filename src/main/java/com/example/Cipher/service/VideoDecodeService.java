@@ -42,7 +42,8 @@ public class VideoDecodeService {
         extractInitialFrames(tempInputPath.toString(), framesDir.toString(), 10); // Extract up to 10 frames
 
         File[] frameFiles = framesDir.toFile().listFiles((dir, name) -> name.endsWith(".png"));
-        if (frameFiles == null) throw new Exception("No frames extracted from video");
+        if (frameFiles == null)
+            throw new Exception("No frames extracted from video");
         Arrays.sort(frameFiles, Comparator.comparing(File::getName));
 
         // Store the frame files directory for multi-frame extraction
@@ -127,7 +128,7 @@ public class VideoDecodeService {
         Map<String, String> extractionResults = new HashMap<>();
 
         // Strategy 1: Fixed thresholds
-        int[] thresholds = {120, 127, 135, 140, 150, 160, 100, 110};
+        int[] thresholds = { 120, 127, 135, 140, 150, 160, 100, 110 };
         for (int threshold : thresholds) {
             String result = extractWithFixedThreshold(frame, threshold, "Fixed-" + threshold);
             if (!result.isEmpty()) {
@@ -146,7 +147,8 @@ public class VideoDecodeService {
         String bestResult = selectBestExtractionFromMap(extractionResults);
 
         if (bestResult.isEmpty()) {
-            throw new IllegalArgumentException("Could not extract valid message with any strategy. Results: " + extractionResults);
+            throw new IllegalArgumentException(
+                    "Could not extract valid message with any strategy. Results: " + extractionResults);
         }
 
         return bestResult;
@@ -171,7 +173,8 @@ public class VideoDecodeService {
                     BufferedImage frame = javax.imageio.ImageIO.read(frameFiles[frameIndex]);
                     System.out.println("Processing frame " + frameIndex + " for extraction");
 
-                    String frameResult = extractFromSingleFrameOptimized(frame, maxCharsToExtract - totalCharsExtracted);
+                    String frameResult = extractFromSingleFrameOptimized(frame,
+                            maxCharsToExtract - totalCharsExtracted);
 
                     if (frameResult.isEmpty()) {
                         if (frameIndex == 0) {
@@ -186,7 +189,8 @@ public class VideoDecodeService {
                     message.append(frameResult);
                     totalCharsExtracted += frameResult.length();
 
-                    System.out.println("Frame " + frameIndex + " contributed " + frameResult.length() + " characters. Total: " + totalCharsExtracted);
+                    System.out.println("Frame " + frameIndex + " contributed " + frameResult.length()
+                            + " characters. Total: " + totalCharsExtracted);
 
                     // Check for null terminator in accumulated message
                     String currentMessage = message.toString();
@@ -352,7 +356,8 @@ public class VideoDecodeService {
 
                     if (y >= height) {
                         System.out.println("Reached end of frame during multi-channel extraction");
-                        if (charPos == 0) return ""; // No data found
+                        if (charPos == 0)
+                            return ""; // No data found
 
                         String result = message.toString();
                         return reconstructBase64Message(result);
@@ -397,9 +402,10 @@ public class VideoDecodeService {
 
                 // Reduced character logging for performance
                 if (charPos < 10 || charPos % 2000 == 0 || charPos == maxCharsToExtract - 1) {
-                    String charDisplay = (finalChar >= 32 && finalChar <= 126) ?
-                            String.valueOf(finalChar) : "\\x" + Integer.toHexString(extractedChar);
-                    System.out.println("Multi-channel extracted char " + charPos + ": '" + charDisplay + "' (ASCII: " + extractedChar + ")");
+                    String charDisplay = (finalChar >= 32 && finalChar <= 126) ? String.valueOf(finalChar)
+                            : "\\x" + Integer.toHexString(extractedChar);
+                    System.out.println("Multi-channel extracted char " + charPos + ": '" + charDisplay + "' (ASCII: "
+                            + extractedChar + ")");
                 }
 
                 // Check for valid Base64 ending for large messages
@@ -452,7 +458,8 @@ public class VideoDecodeService {
 
                         if (y >= height) {
                             System.out.println("Reached end of frame during redundancy extraction");
-                            if (charPos == 0) return ""; // No data found
+                            if (charPos == 0)
+                                return ""; // No data found
 
                             String result = message.toString();
                             return reconstructBase64Message(result);
@@ -495,9 +502,10 @@ public class VideoDecodeService {
                 message.append(finalChar);
 
                 // Log the extracted character
-                String charDisplay = (finalChar >= 32 && finalChar <= 126) ?
-                        String.valueOf(finalChar) : "\\x" + Integer.toHexString(finalChar);
-                System.out.println("Redundancy extracted char " + charPos + ": '" + charDisplay + "' (ASCII: " + extractedChar + ")");
+                String charDisplay = (finalChar >= 32 && finalChar <= 126) ? String.valueOf(finalChar)
+                        : "\\x" + Integer.toHexString(finalChar);
+                System.out.println("Redundancy extracted char " + charPos + ": '" + charDisplay + "' (ASCII: "
+                        + extractedChar + ")");
             }
 
             String rawResult = message.toString();
@@ -527,8 +535,7 @@ public class VideoDecodeService {
             int maxCharsToExtract = 20;
             int extractedChars = 0;
 
-            outerLoop:
-            for (int y = 0; y < height; y++) {
+            outerLoop: for (int y = 0; y < height; y++) {
                 for (int x = 0; x < width; x++) {
                     int rgb = frame.getRGB(x, y);
                     int red = (rgb >> 16) & 0xFF;
@@ -614,7 +621,7 @@ public class VideoDecodeService {
                 Map<Integer, Integer> charCandidates = new HashMap<>();
 
                 // Try different thresholds for this character position
-                int[] thresholds = {100, 110, 120, 127, 130, 135, 140, 150, 160, 170};
+                int[] thresholds = { 100, 110, 120, 127, 130, 135, 140, 150, 160, 170 };
 
                 for (int threshold : thresholds) {
                     int extractedChar = extractSingleCharacter(frame, charPos, threshold);
@@ -648,7 +655,8 @@ public class VideoDecodeService {
                     // Try to correct it to a valid Base64 character
                     char corrected = correctToBase64(finalChar);
                     message.append(corrected);
-                    System.out.println("Character " + charPos + ": '" + finalChar + "' -> '" + corrected + "' (corrected)");
+                    System.out.println(
+                            "Character " + charPos + ": '" + finalChar + "' -> '" + corrected + "' (corrected)");
                 }
             }
 
@@ -712,38 +720,44 @@ public class VideoDecodeService {
         int ascii = (int) c;
 
         // Characters close to Base64 ranges that might be compression artifacts
-        return (ascii >= 65-10 && ascii <= 90+10) ||   // Near A-Z
-                (ascii >= 97-10 && ascii <= 122+10) ||  // Near a-z
-                (ascii >= 48-5 && ascii <= 57+5) ||     // Near 0-9
-                (ascii >= 43-5 && ascii <= 43+5) ||     // Near +
-                (ascii >= 47-5 && ascii <= 47+5) ||     // Near /
-                (ascii >= 61-5 && ascii <= 61+5);       // Near =
+        return (ascii >= 65 - 10 && ascii <= 90 + 10) || // Near A-Z
+                (ascii >= 97 - 10 && ascii <= 122 + 10) || // Near a-z
+                (ascii >= 48 - 5 && ascii <= 57 + 5) || // Near 0-9
+                (ascii >= 43 - 5 && ascii <= 43 + 5) || // Near +
+                (ascii >= 47 - 5 && ascii <= 47 + 5) || // Near /
+                (ascii >= 61 - 5 && ascii <= 61 + 5); // Near =
     }
 
     private char correctToBase64(char c) {
         int ascii = (int) c;
 
         // Correct character to nearest valid Base64 character
-        if (ascii >= 65-10 && ascii <= 90+10) {
+        if (ascii >= 65 - 10 && ascii <= 90 + 10) {
             // Correct to A-Z range
-            if (ascii < 65) return 'A';
-            if (ascii > 90) return 'Z';
+            if (ascii < 65)
+                return 'A';
+            if (ascii > 90)
+                return 'Z';
             return (char) Math.max(65, Math.min(90, ascii));
-        } else if (ascii >= 97-10 && ascii <= 122+10) {
+        } else if (ascii >= 97 - 10 && ascii <= 122 + 10) {
             // Correct to a-z range
-            if (ascii < 97) return 'a';
-            if (ascii > 122) return 'z';
+            if (ascii < 97)
+                return 'a';
+            if (ascii > 122)
+                return 'z';
             return (char) Math.max(97, Math.min(122, ascii));
-        } else if (ascii >= 48-5 && ascii <= 57+5) {
+        } else if (ascii >= 48 - 5 && ascii <= 57 + 5) {
             // Correct to 0-9 range
-            if (ascii < 48) return '0';
-            if (ascii > 57) return '9';
+            if (ascii < 48)
+                return '0';
+            if (ascii > 57)
+                return '9';
             return (char) Math.max(48, Math.min(57, ascii));
-        } else if (ascii >= 43-5 && ascii <= 43+5) {
+        } else if (ascii >= 43 - 5 && ascii <= 43 + 5) {
             return '+';
-        } else if (ascii >= 47-5 && ascii <= 47+5) {
+        } else if (ascii >= 47 - 5 && ascii <= 47 + 5) {
             return '/';
-        } else if (ascii >= 61-5 && ascii <= 61+5) {
+        } else if (ascii >= 61 - 5 && ascii <= 61 + 5) {
             return '=';
         }
 
@@ -896,7 +910,7 @@ public class VideoDecodeService {
         char closest = c;
 
         for (char b64Char : base64Chars.toCharArray()) {
-            int distance = Math.abs((int)c - (int)b64Char);
+            int distance = Math.abs((int) c - (int) b64Char);
             if (distance < minDistance) {
                 minDistance = distance;
                 closest = b64Char;
@@ -915,7 +929,10 @@ public class VideoDecodeService {
         for (Path path : paths) {
             if (Files.isDirectory(path)) {
                 Files.walk(path).sorted(Comparator.reverseOrder()).forEach(p -> {
-                    try { Files.delete(p); } catch (IOException ignored) {}
+                    try {
+                        Files.delete(p);
+                    } catch (IOException ignored) {
+                    }
                 });
             } else {
                 Files.deleteIfExists(path);

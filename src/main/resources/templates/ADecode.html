@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,40 +9,42 @@
     <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 </head>
+
 <body>
-<div th:replace="~{fragments/topnav :: header}"></div>
-<main>
-    <div class="container">
-        <h1>Decode WAV</h1>
-        <p>Extract a hidden message from WAV file</p>
-        <div class="decode-form">
-            <form id="decodeForm" enctype="multipart/form-data">
-                <label for="inputFile">Select WAV file:</label>
-                <input type="file" id="inputFile" name="audio" accept=".wav" required>
+    <div th:replace="~{fragments/topnav :: header}"></div>
+    <main>
+        <div class="container">
+            <h1>Decode WAV</h1>
+            <p>Extract a hidden message from an audio file</p>
+            <div class="decode-form">
+                <form id="decodeForm" enctype="multipart/form-data">
+                    <input type="file" id="inputFile" name="audio" accept=".wav" required>
 
-                <label for="key"></label>
-                <div class="key-container-a">
-                    <input type="password" id="key" name="key" placeholder="Encryption key...(8 characters)" required maxlength="8">
-                    <img src="/icons/hide.png" alt="Show/Hide" id="toggleKey" onclick="toggleKeyVisibility()">
+                    <label for="key"></label>
+                    <div class="key-container-a">
+                        <input type="password" id="key" name="key" placeholder="Encryption key...(8 characters)"
+                            required maxlength="8">
+                        <img src="/icons/hide.png" alt="Show/Hide" id="toggleKey" onclick="toggleKeyVisibility()">
+                    </div>
+
+                    <button type="button" onclick="submitDecodeForm()">Decode Message</button>
+                </form>
+                <div id="audioPreviewSection" style="display: none;">
+                    <h2>Audio Preview:</h2>
+                    <audio id="audioPreview" controls>
+                        Your browser does not support the audio element.
+                    </audio>
                 </div>
-
-                <button type="button" onclick="submitDecodeForm()">Decode Message</button>
-            </form>
-            <div id="audioPreviewSection" style="display: none;">
-                <h2>Audio Preview:</h2>
-                <audio id="audioPreview" controls>
-                    Your browser does not support the audio element.
-                </audio>
+                <h2 id="decoded-message-heading" style="display: none;">Decoded Message:</h2>
+                <div id="decodedMessageSection" style="display: none;">
+                    <p class="decoded-message" id="decoded-message"></p>
+                </div>
+                <p id="compilationTime" style="display: none;"></p>
             </div>
-            <h2 id="decoded-message-heading" style="display: none;">Decoded Message:</h2>
-            <div id="decodedMessageSection" style="display: none;">
-                <p class="decoded-message" id="decoded-message"></p>
-            </div>
-            <p id="compilationTime" style="display: none;"></p> 
         </div>
-    </div>
-</main>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
-<script src="/js/adecode.js"></script>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+    <script src="/js/adecode.js"></script>
 </body>
+
 </html>
