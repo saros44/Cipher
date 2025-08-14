@@ -1,974 +1,307 @@
 package com.example.Cipher.service;
 
-import java.awt.image.BufferedImage;
-import java.io.*;
-import java.nio.file.*;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Base64;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.HashMap;
-import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import static com.example.Cipher.service.VideoEncryptionUtil.isValidBase64;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class VideoDecodeService {
 
-    private static final int AES_KEY_SIZE = 16; // AES key size in bytes (128 bits)
+    // ==== Must match the encoder ====
+    /**
+     * Per-frame delimiter that marks the end of the chunk in each modified frame.
+     */
+    private static final String FRAME_DELIM = "<END>";
+    /**
+     * Intensity threshold to decide bit value (robust vs. 10/245 encoding and Xvid
+     * -q:v 2).
+     */
+    private static final int BIT_THRESHOLD = 128;
 
+    /** Optional: how many frames at most to scan before giving up (safety) */
+    private static final int MAX_FRAMES_TO_SCAN = 10_000;
+
+    /**
+     * Decode the hidden message from the provided video using the given secret key.
+     * This method:
+     * 1) Extracts frames losslessly to PNG.
+     * 2) Reads pixels in raster order, 1 pixel = 1 bit, 8 bits = 1 char (MSB →
+     * LSB).
+     * 3) For each frame, collects chars until it sees FRAME_DELIM; that chunk is
+     * appended.
+     * 4) Stops at the first frame that does not contain FRAME_DELIM (encoder only
+     * modified the first N frames).
+     * 5) Concatenates chunks and decrypts with VideoEncryptionUtil.decrypt(cipher,
+     * key).
+     */
     public String decode(MultipartFile videoFile, String key) throws Exception {
         if (key == null || key.length() < 8) {
             throw new IllegalArgumentException("Secret key must be at least 8 characters long.");
         }
-
-        Path tempInputPath = Files.createTempFile("input_", ".avi");
-        Files.copy(videoFile.getInputStream(), tempInputPath, StandardCopyOption.REPLACE_EXISTING);
-
-        // Extract the secret key from video metadata
-        String extractedKey = extractKeyFromMetadata(tempInputPath.toString());
-        System.out.println("Extracted key from metadata: " + (extractedKey != null ? "Found" : "Not found"));
-
-        // Verify the provided key matches the embedded key
-        if (extractedKey == null || !extractedKey.equals(key)) {
-            throw new IllegalArgumentException("Invalid key - provided key doesn't match the key embedded in video");
+        if (videoFile == null || videoFile.isEmpty()) {
+            throw new IllegalArgumentException("Video file must not be empty.");
         }
 
-        // Extract only the first few frames (where steganography data would be)
-        Path framesDir = Files.createTempDirectory("frames");
-        extractInitialFrames(tempInputPath.toString(), framesDir.toString(), 10); // Extract up to 10 frames
+        Path tempInput = null;
+        Path framesDir = null;
 
-        File[] frameFiles = framesDir.toFile().listFiles((dir, name) -> name.endsWith(".png"));
-        if (frameFiles == null)
-            throw new Exception("No frames extracted from video");
-        Arrays.sort(frameFiles, Comparator.comparing(File::getName));
-
-        // Store the frame files directory for multi-frame extraction
-        this.currentFramesDir = framesDir;
-        this.currentFrameFiles = frameFiles;
-
-        // Decode from frames
-        BufferedImage firstFrame = javax.imageio.ImageIO.read(frameFiles[0]);
-
-        // Extract the encrypted message using robust extraction
-        String encryptedMessage = extractMessageFromFrame(firstFrame);
-        System.out.println("Extracted encrypted message length: " + encryptedMessage.length());
-        System.out.println("Extracted encrypted message: " + encryptedMessage);
-
-        if (encryptedMessage.isEmpty()) {
-            throw new Exception("No message found in video");
-        }
-
-        // Decrypt the message using custom encryption with the extracted key
-        String decryptedMessage = VideoEncryptionUtil.decrypt(encryptedMessage, extractedKey);
-
-        cleanup(tempInputPath, framesDir);
-        return decryptedMessage;
-    }
-
-    // Add instance variables to store frame information for multi-frame extraction
-    private Path currentFramesDir;
-    private File[] currentFrameFiles;
-
-    private String extractKeyFromMetadata(String videoPath) throws Exception {
         try {
-            Process process = new ProcessBuilder("ffprobe", "-v", "error",
-                    "-show_entries", "format_tags=title",
-                    "-of", "default=noprint_wrappers=1:nokey=1",
-                    videoPath).start();
+            // Save upload to a temp file (works for .avi or any other container; ffmpeg
+            // will read it)
+            String originalName = safeName(videoFile.getOriginalFilename());
+            String ext = (originalName != null && originalName.contains("."))
+                    ? originalName.substring(originalName.lastIndexOf('.'))
+                    : ".avi";
+            tempInput = Files.createTempFile("decode_input_", ext);
+            Files.copy(videoFile.getInputStream(), tempInput, StandardCopyOption.REPLACE_EXISTING);
 
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String encodedKey = reader.readLine();
-            reader.close();
+            // Extract frames at highest quality; use PNG to avoid further loss
+            framesDir = Files.createTempDirectory("decoded_frames_");
+            extractAllFrames(tempInput.toString(), framesDir.toString());
 
-            int exitCode = process.waitFor();
-            if (exitCode != 0 || encodedKey == null || encodedKey.trim().isEmpty()) {
-                return null;
+            // Iterate frames in numeric order; stop at first one without a complete
+            // delimiter
+            List<File> frames = listPngFramesSorted(framesDir);
+            if (frames.isEmpty()) {
+                throw new IllegalStateException("No frames extracted from video.");
             }
 
-            // Decode the Base64 encoded key
-            byte[] decodedBytes = Base64.getDecoder().decode(encodedKey.trim());
-            return new String(decodedBytes);
+            StringBuilder cipherAggregate = new StringBuilder();
+            int framesWithData = 0;
 
-        } catch (Exception e) {
-            System.out.println("Failed to extract key from metadata: " + e.getMessage());
+            for (int i = 0; i < frames.size() && i < MAX_FRAMES_TO_SCAN; i++) {
+                File frameFile = frames.get(i);
+                BufferedImage img = ImageIO.read(frameFile);
+                if (img == null)
+                    continue;
+
+                String chunk = decodeChunkFromFrame(img);
+                if (chunk == null) {
+                    // No delimiter found in this frame => encoder did not modify this (and
+                    // subsequent) frames.
+                    break;
+                }
+                cipherAggregate.append(chunk);
+                framesWithData++;
+            }
+
+            if (framesWithData == 0) {
+                throw new IllegalStateException("No embedded data found. " +
+                        "Make sure you're using the correct video and the encoding completed successfully.");
+            }
+
+            String encryptedMessage = cipherAggregate.toString();
+            String plaintext = VideoEncryptionUtil.decrypt(encryptedMessage, key);
+            return plaintext;
+
+        } finally {
+            cleanup(framesDir, tempInput);
+        }
+    }
+
+    /**
+     * Same as decode(...) but returns details helpful for debugging/metrics.
+     */
+    public DecodingResult decodeWithDetails(MultipartFile videoFile, String key) throws Exception {
+        if (key == null || key.length() < 8) {
+            throw new IllegalArgumentException("Secret key must be at least 8 characters long.");
+        }
+        if (videoFile == null || videoFile.isEmpty()) {
+            throw new IllegalArgumentException("Video file must not be empty.");
+        }
+
+        Path tempInput = null;
+        Path framesDir = null;
+
+        try {
+            String originalName = safeName(videoFile.getOriginalFilename());
+            String ext = (originalName != null && originalName.contains("."))
+                    ? originalName.substring(originalName.lastIndexOf('.'))
+                    : ".avi";
+            tempInput = Files.createTempFile("decode_input_", ext);
+            Files.copy(videoFile.getInputStream(), tempInput, StandardCopyOption.REPLACE_EXISTING);
+
+            framesDir = Files.createTempDirectory("decoded_frames_");
+            extractAllFrames(tempInput.toString(), framesDir.toString());
+
+            List<File> frames = listPngFramesSorted(framesDir);
+            if (frames.isEmpty()) {
+                throw new IllegalStateException("No frames extracted from video.");
+            }
+
+            List<String> chunks = new ArrayList<>();
+            int framesScanned = 0;
+
+            for (int i = 0; i < frames.size() && i < MAX_FRAMES_TO_SCAN; i++) {
+                framesScanned++;
+                File frameFile = frames.get(i);
+                BufferedImage img = ImageIO.read(frameFile);
+                if (img == null)
+                    continue;
+
+                String chunk = decodeChunkFromFrame(img);
+                if (chunk == null) {
+                    break; // first non-modified frame encountered
+                }
+                chunks.add(chunk);
+            }
+
+            String cipher = String.join("", chunks);
+            String plaintext = cipher.isEmpty() ? "" : VideoEncryptionUtil.decrypt(cipher, key);
+
+            return new DecodingResult(plaintext, cipher, chunks.size(), framesScanned);
+
+        } finally {
+            cleanup(framesDir, tempInput);
+        }
+    }
+
+    // ===================== Internals =====================
+
+    private static String safeName(String name) {
+        if (name == null)
             return null;
+        return name.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private static void extractAllFrames(String videoPath, String framesDir) throws Exception {
+        // Extract every frame to PNG with good quality
+        String framePattern = Paths.get(framesDir, "frame_%06d.png").toString();
+        List<String> cmd = Arrays.asList(
+                "ffmpeg", "-y",
+                "-i", videoPath,
+                "-q:v", "1",
+                framePattern);
+        int exit = runAndPipe(cmd, "[ffmpeg decode-extract]");
+        if (exit != 0) {
+            throw new IOException("Failed to extract frames for decoding. Exit=" + exit);
         }
     }
 
-    private String extractMessageFromFrame(BufferedImage frame) {
-        // For large messages, start with optimized multi-frame extraction
-        String multiFrameResult = extractFromMultipleFrames();
-        if (!multiFrameResult.isEmpty()) {
-            System.out.println("Multi-frame extraction successful: " + multiFrameResult.length() + " characters");
-            return multiFrameResult;
-        }
+    private static List<File> listPngFramesSorted(Path framesDir) throws IOException {
+        File[] files = framesDir.toFile().listFiles((d, n) -> n.toLowerCase(Locale.ROOT).endsWith(".png"));
+        if (files == null)
+            return Collections.emptyList();
+        return Arrays.stream(files)
+                .sorted(Comparator.comparing(File::getName))
+                .collect(Collectors.toList());
+    }
 
-        // Fallback to single frame extraction
-        System.out.println("Starting single-frame message extraction");
-        String multiChannelResult = extractWithMultiChannelRedundancy(frame);
-        if (!multiChannelResult.isEmpty()) {
-            System.out.println("Multi-channel extraction successful: " + multiChannelResult);
-            return multiChannelResult;
-        }
+    /**
+     * Decode a single frame’s chunk:
+     * - Read bits from pixels in raster order.
+     * - Build chars (8 bits, MSB→LSB).
+     * - Stop & return the chunk if FRAME_DELIM is seen.
+     * - If delimiter never appears, return null (frame not modified).
+     */
+    private static String decodeChunkFromFrame(BufferedImage img) {
+        final int width = img.getWidth();
+        final int height = img.getHeight();
+        final int totalPixels = width * height;
 
-        // Try traditional redundancy extraction
-        String redundancyResult = extractWithRedundancy(frame);
-        if (!redundancyResult.isEmpty()) {
-            System.out.println("Traditional redundancy extraction successful: " + redundancyResult);
-            return redundancyResult;
-        }
+        StringBuilder sb = new StringBuilder();
+        StringBuilder rolling = new StringBuilder(); // to detect delimiter without constantly slicing strings
 
-        // Fallback to multiple threshold approach
-        System.out.println("All redundancy extractions failed, trying multiple strategies");
+        int bitCount = 0;
+        int currentByte = 0;
 
-        Map<String, String> extractionResults = new HashMap<>();
+        for (int pixelIndex = 0; pixelIndex < totalPixels; pixelIndex++) {
+            int x = pixelIndex % width;
+            int y = pixelIndex / width;
 
-        // Strategy 1: Fixed thresholds
-        int[] thresholds = { 120, 127, 135, 140, 150, 160, 100, 110 };
-        for (int threshold : thresholds) {
-            String result = extractWithFixedThreshold(frame, threshold, "Fixed-" + threshold);
-            if (!result.isEmpty()) {
-                extractionResults.put("Fixed-" + threshold, result);
+            int rgb = img.getRGB(x, y);
+            int r = (rgb >> 16) & 0xFF;
+            int g = (rgb >> 8) & 0xFF;
+            int b = rgb & 0xFF;
+            // Grayscale values are equal (10 or 245), but after compression they might
+            // drift;
+            // averaging is robust.
+            int intensity = (r + g + b) / 3;
+
+            int bit = (intensity >= BIT_THRESHOLD) ? 1 : 0;
+
+            // Build bytes MSB → LSB
+            currentByte = (currentByte << 1) | bit;
+            bitCount++;
+
+            if (bitCount == 8) {
+                char c = (char) (currentByte & 0xFF);
+                sb.append(c);
+
+                // Rolling window for delimiter detection (avoid substring calls)
+                rolling.append(c);
+                if (rolling.length() > FRAME_DELIM.length()) {
+                    rolling.deleteCharAt(0);
+                }
+                if (rolling.toString().equals(FRAME_DELIM)) {
+                    // Remove the delimiter from the end and return the chunk
+                    int chunkLen = sb.length() - FRAME_DELIM.length();
+                    return (chunkLen <= 0) ? "" : sb.substring(0, chunkLen);
+                }
+                // Reset for next byte
+                currentByte = 0;
+                bitCount = 0;
             }
         }
 
-        // Strategy 2: Adaptive threshold
-        String adaptiveResult = extractWithAdaptiveThreshold(frame);
-        if (!adaptiveResult.isEmpty()) {
-            extractionResults.put("Adaptive", adaptiveResult);
-        }
-
-        System.out.println("All extraction results: " + extractionResults);
-
-        String bestResult = selectBestExtractionFromMap(extractionResults);
-
-        if (bestResult.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "Could not extract valid message with any strategy. Results: " + extractionResults);
-        }
-
-        return bestResult;
+        // Exhausted all pixels without seeing the delimiter => not a modified frame
+        return null;
     }
 
-    private String extractFromMultipleFrames() {
+    /**
+     * Run a process and pipe output for easier debugging (mirrors your encoder
+     * helper).
+     */
+    private static int runAndPipe(List<String> command, String prefix) throws IOException, InterruptedException {
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                System.out.println(prefix + " " + line);
+            }
+        }
+        return p.waitFor();
+    }
+
+    private static void cleanup(Path... paths) {
+        for (Path p : paths) {
+            safeDelete(p);
+        }
+    }
+
+    private static void safeDelete(Path path) {
+        if (path == null)
+            return;
         try {
-            System.out.println("Trying multi-frame extraction for large messages");
-
-            File[] frameFiles = getCurrentFrameFiles();
-            if (frameFiles == null || frameFiles.length == 0) {
-                return "";
-            }
-
-            StringBuilder message = new StringBuilder();
-            int totalCharsExtracted = 0;
-            int maxCharsToExtract = 200000; // Increased limit for very large messages
-
-            // Process frames in sequence
-            for (int frameIndex = 0; frameIndex < Math.min(frameFiles.length, 10); frameIndex++) {
-                try {
-                    BufferedImage frame = javax.imageio.ImageIO.read(frameFiles[frameIndex]);
-                    System.out.println("Processing frame " + frameIndex + " for extraction");
-
-                    String frameResult = extractFromSingleFrameOptimized(frame,
-                            maxCharsToExtract - totalCharsExtracted);
-
-                    if (frameResult.isEmpty()) {
-                        if (frameIndex == 0) {
-                            System.out.println("No data in first frame, trying single-frame approach");
-                            return "";
-                        } else {
-                            System.out.println("End of data reached at frame " + frameIndex);
-                            break;
-                        }
-                    }
-
-                    message.append(frameResult);
-                    totalCharsExtracted += frameResult.length();
-
-                    System.out.println("Frame " + frameIndex + " contributed " + frameResult.length()
-                            + " characters. Total: " + totalCharsExtracted);
-
-                    // Check for null terminator in accumulated message
-                    String currentMessage = message.toString();
-                    int nullPos = currentMessage.indexOf('\0');
-                    if (nullPos != -1) {
-                        System.out.println("Found null terminator at position " + nullPos);
-                        currentMessage = currentMessage.substring(0, nullPos);
-                        return reconstructBase64Message(currentMessage);
-                    }
-
-                    // Check for valid Base64 ending patterns
-                    if (isLikelyCompleteBase64Message(currentMessage)) {
-                        System.out.println("Detected likely complete Base64 message");
-                        return reconstructBase64Message(currentMessage);
-                    }
-
-                    if (totalCharsExtracted >= maxCharsToExtract) {
-                        System.out.println("Reached maximum extraction limit");
-                        break;
-                    }
-
-                } catch (Exception e) {
-                    System.out.println("Error processing frame " + frameIndex + ": " + e.getMessage());
-                    if (frameIndex == 0) {
-                        return "";
-                    }
-                    break;
-                }
-            }
-
-            if (message.length() > 0) {
-                String result = reconstructBase64Message(message.toString());
-                System.out.println("Multi-frame extraction completed. Total characters: " + totalCharsExtracted);
-                return result;
-            }
-
-            return "";
-
-        } catch (Exception e) {
-            System.out.println("Multi-frame extraction failed: " + e.getMessage());
-            return "";
-        }
-    }
-
-    private boolean isLikelyCompleteBase64Message(String message) {
-        // Check if message looks like a complete Base64 encoded string
-        if (message.length() < 100) {
-            return false; // Too short for large messages
-        }
-
-        // Check if it ends with proper Base64 padding
-        if (message.endsWith("==") || message.endsWith("=")) {
-            return isValidBase64(message);
-        }
-
-        // Check if length is reasonable for Base64 (multiple of 4 after padding)
-        String padded = message;
-        while (padded.length() % 4 != 0) {
-            padded += "=";
-        }
-
-        return isValidBase64(padded);
-    }
-
-    private String extractFromSingleFrameOptimized(BufferedImage frame, int maxChars) {
-        try {
-            int width = frame.getWidth();
-            int height = frame.getHeight();
-            StringBuilder message = new StringBuilder();
-            int pixelIndex = 0;
-            int charsExtracted = 0;
-            int consecutiveNulls = 0;
-
-            while (charsExtracted < maxChars && pixelIndex < width * height - 8) {
-                int extractedChar = 0;
-
-                // Extract 8 bits for this character
-                for (int bitPos = 0; bitPos < 8; bitPos++) {
-                    int x = pixelIndex % width;
-                    int y = pixelIndex / width;
-
-                    if (y >= height) {
-                        break;
-                    }
-
-                    int rgb = frame.getRGB(x, y);
-                    int red = (rgb >> 16) & 0xFF;
-                    int green = (rgb >> 8) & 0xFF;
-                    int blue = rgb & 0xFF;
-
-                    // Optimized bit extraction using high contrast detection
-                    int bit;
-                    int avg = (red + green + blue) / 3;
-
-                    if (avg >= 200) {
-                        bit = 1;
-                    } else if (avg <= 50) {
-                        bit = 0;
-                    } else {
-                        // Use majority vote from RGB channels for ambiguous cases
-                        int redBit = (red >= 128) ? 1 : 0;
-                        int greenBit = (green >= 128) ? 1 : 0;
-                        int blueBit = (blue >= 128) ? 1 : 0;
-                        bit = (redBit + greenBit + blueBit >= 2) ? 1 : 0;
-                    }
-
-                    extractedChar = (extractedChar << 1) | bit;
-                    pixelIndex++;
-                }
-
-                char finalChar = (char) extractedChar;
-
-                if (extractedChar == 0) {
-                    consecutiveNulls++;
-                    if (consecutiveNulls >= 3) {
-                        // Multiple consecutive nulls indicate end of data
-                        System.out.println("Found end of data marker at character position " + charsExtracted);
-                        break;
-                    }
-                } else {
-                    consecutiveNulls = 0;
-                }
-
-                message.append(finalChar);
-                charsExtracted++;
-
-                // Progress logging for large extractions
-                if (charsExtracted % 5000 == 0) {
-                    System.out.println("Extracted " + charsExtracted + " characters from current frame");
-                }
-            }
-
-            return message.toString();
-
-        } catch (Exception e) {
-            System.out.println("Optimized single frame extraction failed: " + e.getMessage());
-            return "";
-        }
-    }
-
-    private File[] getCurrentFrameFiles() {
-        // Return the stored frame files for multi-frame processing
-        return this.currentFrameFiles;
-    }
-
-    private String extractWithMultiChannelRedundancy(BufferedImage frame) {
-        try {
-            System.out.println("Trying multi-channel redundancy-based extraction");
-
-            int width = frame.getWidth();
-            int height = frame.getHeight();
-            StringBuilder message = new StringBuilder();
-            int pixelIndex = 0;
-            int maxCharsToExtract = 15000; // Increased for large messages
-
-            for (int charPos = 0; charPos < maxCharsToExtract; charPos++) {
-                int extractedChar = 0;
-
-                // Extract 8 bits for this character
-                for (int bitPos = 0; bitPos < 8; bitPos++) {
-                    int x = pixelIndex % width;
-                    int y = pixelIndex / width;
-
-                    if (y >= height) {
-                        System.out.println("Reached end of frame during multi-channel extraction");
-                        if (charPos == 0)
-                            return ""; // No data found
-
-                        String result = message.toString();
-                        return reconstructBase64Message(result);
-                    }
-
-                    int rgb = frame.getRGB(x, y);
-                    int red = (rgb >> 16) & 0xFF;
-                    int green = (rgb >> 8) & 0xFF;
-                    int blue = rgb & 0xFF;
-
-                    // Optimized voting for large messages
-                    List<Integer> bitVotes = new ArrayList<>();
-
-                    // Simplified thresholds for better performance
-                    bitVotes.add((red >= 128) ? 1 : 0);
-                    bitVotes.add((green >= 128) ? 1 : 0);
-                    bitVotes.add((blue >= 128) ? 1 : 0);
-
-                    // Majority vote from all three channels
-                    int bit1Count = bitVotes.stream().mapToInt(Integer::intValue).sum();
-                    int finalBit = (bit1Count >= 2) ? 1 : 0; // Majority wins
-
-                    extractedChar = (extractedChar << 1) | finalBit;
-                    pixelIndex++;
-
-                    // Minimal debug logging for performance
-                    if (charPos < 5 || charPos % 2000 == 0) {
-                        System.out.println("Pixel (" + x + "," + y + ") RGB(" + red + "," + green + "," + blue +
-                                ") votes: " + bitVotes + " -> bit: " + finalBit);
-                    }
-                }
-
-                char finalChar = (char) extractedChar;
-
-                // More strict null terminator detection
-                if (extractedChar == 0) {
-                    System.out.println("Found null terminator at character position " + charPos);
-                    break;
-                }
-
-                message.append(finalChar);
-
-                // Reduced character logging for performance
-                if (charPos < 10 || charPos % 2000 == 0 || charPos == maxCharsToExtract - 1) {
-                    String charDisplay = (finalChar >= 32 && finalChar <= 126) ? String.valueOf(finalChar)
-                            : "\\x" + Integer.toHexString(extractedChar);
-                    System.out.println("Multi-channel extracted char " + charPos + ": '" + charDisplay + "' (ASCII: "
-                            + extractedChar + ")");
-                }
-
-                // Check for valid Base64 ending for large messages
-                if (message.length() >= 100 && (finalChar == '=' ||
-                        (message.length() >= 200 && message.toString().endsWith("=")))) {
-                    String currentMessage = message.toString();
-                    if (currentMessage.length() % 4 == 0 && isValidBase64(currentMessage)) {
-                        System.out.println("Detected potential end of Base64 message at position " + charPos);
-                        break;
-                    }
-                }
-            }
-
-            String rawResult = message.toString();
-            if (rawResult.isEmpty()) {
-                return "";
-            }
-
-            String result = reconstructBase64Message(rawResult);
-            System.out.println("Multi-channel extraction result length: " + result.length());
-            return result;
-
-        } catch (Exception e) {
-            System.out.println("Multi-channel extraction failed: " + e.getMessage());
-            return "";
-        }
-    }
-
-    private String extractWithRedundancy(BufferedImage frame) {
-        try {
-            System.out.println("Trying redundancy-based extraction");
-
-            int width = frame.getWidth();
-            int height = frame.getHeight();
-            StringBuilder message = new StringBuilder();
-            int pixelIndex = 0;
-            int maxCharsToExtract = 20;
-
-            for (int charPos = 0; charPos < maxCharsToExtract; charPos++) {
-                int extractedChar = 0;
-
-                // Extract 8 bits for this character
-                for (int bitPos = 0; bitPos < 8; bitPos++) {
-                    List<Integer> bitVotes = new ArrayList<>();
-
-                    // Get 3 redundant encodings of this bit
-                    for (int redundancy = 0; redundancy < 3; redundancy++) {
-                        int x = pixelIndex % width;
-                        int y = pixelIndex / width;
-
-                        if (y >= height) {
-                            System.out.println("Reached end of frame during redundancy extraction");
-                            if (charPos == 0)
-                                return ""; // No data found
-
-                            String result = message.toString();
-                            return reconstructBase64Message(result);
-                        }
-
-                        int rgb = frame.getRGB(x, y);
-                        int red = (rgb >> 16) & 0xFF;
-
-                        // Determine bit based on red value
-                        // Original encoding: bit 1 -> 240-250, bit 0 -> 5-15
-                        int bit;
-                        if (red >= 200) {
-                            bit = 1;
-                        } else if (red <= 50) {
-                            bit = 0;
-                        } else {
-                            // Ambiguous, use threshold
-                            bit = (red >= 128) ? 1 : 0;
-                        }
-
-                        bitVotes.add(bit);
-                        pixelIndex++;
-                    }
-
-                    // Majority vote for this bit
-                    int bit1Count = (int) bitVotes.stream().mapToInt(Integer::intValue).sum();
-                    int finalBit = (bit1Count >= 2) ? 1 : 0; // Majority wins
-
-                    extractedChar = (extractedChar << 1) | finalBit;
-                }
-
-                char finalChar = (char) extractedChar;
-
-                if (finalChar == '\0') {
-                    // Found null terminator
-                    System.out.println("Found null terminator at character position " + charPos);
-                    break;
-                }
-
-                message.append(finalChar);
-
-                // Log the extracted character
-                String charDisplay = (finalChar >= 32 && finalChar <= 126) ? String.valueOf(finalChar)
-                        : "\\x" + Integer.toHexString(finalChar);
-                System.out.println("Redundancy extracted char " + charPos + ": '" + charDisplay + "' (ASCII: "
-                        + extractedChar + ")");
-            }
-
-            String rawResult = message.toString();
-            if (rawResult.isEmpty()) {
-                return "";
-            }
-
-            String result = reconstructBase64Message(rawResult);
-            System.out.println("Redundancy extraction result: '" + result + "'");
-            return result;
-
-        } catch (Exception e) {
-            System.out.println("Redundancy extraction failed: " + e.getMessage());
-            return "";
-        }
-    }
-
-    private String extractWithFixedThreshold(BufferedImage frame, int threshold, String strategyName) {
-        try {
-            System.out.println("Trying extraction strategy: " + strategyName);
-
-            int width = frame.getWidth();
-            int height = frame.getHeight();
-            StringBuilder message = new StringBuilder();
-            int currentChar = 0;
-            int bitIndex = 0;
-            int maxCharsToExtract = 20;
-            int extractedChars = 0;
-
-            outerLoop: for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    int rgb = frame.getRGB(x, y);
-                    int red = (rgb >> 16) & 0xFF;
-                    int bit = (red > threshold) ? 1 : 0;
-
-                    currentChar = (currentChar << 1) | bit;
-                    bitIndex++;
-
-                    if (bitIndex == 8) {
-                        char extractedChar = (char) currentChar;
-
-                        if (extractedChar == '\0') {
-                            break outerLoop;
-                        }
-
-                        message.append(extractedChar);
-                        extractedChars++;
-
-                        if (extractedChars >= maxCharsToExtract) {
-                            break outerLoop;
-                        }
-
-                        currentChar = 0;
-                        bitIndex = 0;
-                    }
-                }
-            }
-
-            String rawResult = message.toString();
-            if (rawResult.isEmpty()) {
-                return "";
-            }
-
-            String result = reconstructBase64Message(rawResult);
-            System.out.println(strategyName + " result: '" + result + "'");
-            return result;
-
-        } catch (Exception e) {
-            System.out.println(strategyName + " failed: " + e.getMessage());
-            return "";
-        }
-    }
-
-    private String extractWithAdaptiveThreshold(BufferedImage frame) {
-        try {
-            System.out.println("Trying extraction strategy: Adaptive");
-
-            int width = frame.getWidth();
-            int height = frame.getHeight();
-
-            // Sample first 200 pixels to determine threshold
-            List<Integer> redValues = new ArrayList<>();
-            for (int i = 0; i < Math.min(200, width * height); i++) {
-                int x = i % width;
-                int y = i / width;
-                int rgb = frame.getRGB(x, y);
-                int red = (rgb >> 16) & 0xFF;
-                redValues.add(red);
-            }
-
-            redValues.sort(Integer::compareTo);
-            int median = redValues.get(redValues.size() / 2);
-
-            return extractWithFixedThreshold(frame, median, "Adaptive-" + median);
-
-        } catch (Exception e) {
-            System.out.println("Adaptive extraction failed: " + e.getMessage());
-            return "";
-        }
-    }
-
-    private String reconstructMessageCharByChar(BufferedImage frame) {
-        try {
-            System.out.println("Trying character-by-character reconstruction");
-
-            int width = frame.getWidth();
-            int height = frame.getHeight();
-            StringBuilder message = new StringBuilder();
-            int maxCharsToExtract = 15; // Expected encrypted message length
-
-            // For each character position, try multiple thresholds and pick the best
-            for (int charPos = 0; charPos < maxCharsToExtract; charPos++) {
-                Map<Integer, Integer> charCandidates = new HashMap<>();
-
-                // Try different thresholds for this character position
-                int[] thresholds = { 100, 110, 120, 127, 130, 135, 140, 150, 160, 170 };
-
-                for (int threshold : thresholds) {
-                    int extractedChar = extractSingleCharacter(frame, charPos, threshold);
-                    if (extractedChar != 0) { // Not null terminator
-                        charCandidates.put(extractedChar, charCandidates.getOrDefault(extractedChar, 0) + 1);
-                    }
-                }
-
-                // Find the most common character (majority vote)
-                int bestChar = 0;
-                int maxVotes = 0;
-                for (Map.Entry<Integer, Integer> entry : charCandidates.entrySet()) {
-                    if (entry.getValue() > maxVotes) {
-                        maxVotes = entry.getValue();
-                        bestChar = entry.getKey();
-                    }
-                }
-
-                if (bestChar == 0) {
-                    // No consensus, stop here
-                    break;
-                }
-
-                char finalChar = (char) bestChar;
-
-                // Check if this looks like a valid Base64 character
-                if (isValidBase64Char(finalChar)) {
-                    message.append(finalChar);
-                    System.out.println("Character " + charPos + ": '" + finalChar + "' (votes: " + maxVotes + ")");
-                } else {
-                    // Try to correct it to a valid Base64 character
-                    char corrected = correctToBase64(finalChar);
-                    message.append(corrected);
-                    System.out.println(
-                            "Character " + charPos + ": '" + finalChar + "' -> '" + corrected + "' (corrected)");
-                }
-            }
-
-            String result = message.toString();
-
-            // Ensure proper Base64 padding
-            while (result.length() % 4 != 0) {
-                result += "=";
-            }
-
-            if (isValidBase64(result) && result.length() >= 8) {
-                System.out.println("CharByChar reconstruction result: '" + result + "'");
-                return result;
-            }
-
-            return "";
-
-        } catch (Exception e) {
-            System.out.println("CharByChar reconstruction failed: " + e.getMessage());
-            return "";
-        }
-    }
-
-    private int extractSingleCharacter(BufferedImage frame, int charPosition, int threshold) {
-        int width = frame.getWidth();
-        int height = frame.getHeight();
-        int currentChar = 0;
-        int bitIndex = 0;
-        int charIndex = 0;
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int rgb = frame.getRGB(x, y);
-                int red = (rgb >> 16) & 0xFF;
-                int bit = (red > threshold) ? 1 : 0;
-
-                currentChar = (currentChar << 1) | bit;
-                bitIndex++;
-
-                if (bitIndex == 8) {
-                    if (charIndex == charPosition) {
-                        return currentChar;
-                    }
-                    charIndex++;
-                    currentChar = 0;
-                    bitIndex = 0;
-                }
-            }
-        }
-
-        return 0; // Not found
-    }
-
-    private boolean isValidBase64Char(char c) {
-        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-                (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '=';
-    }
-
-    private boolean isLikelyBase64Char(char c) {
-        // Check if character might be a corrupted Base64 character
-        int ascii = (int) c;
-
-        // Characters close to Base64 ranges that might be compression artifacts
-        return (ascii >= 65 - 10 && ascii <= 90 + 10) || // Near A-Z
-                (ascii >= 97 - 10 && ascii <= 122 + 10) || // Near a-z
-                (ascii >= 48 - 5 && ascii <= 57 + 5) || // Near 0-9
-                (ascii >= 43 - 5 && ascii <= 43 + 5) || // Near +
-                (ascii >= 47 - 5 && ascii <= 47 + 5) || // Near /
-                (ascii >= 61 - 5 && ascii <= 61 + 5); // Near =
-    }
-
-    private char correctToBase64(char c) {
-        int ascii = (int) c;
-
-        // Correct character to nearest valid Base64 character
-        if (ascii >= 65 - 10 && ascii <= 90 + 10) {
-            // Correct to A-Z range
-            if (ascii < 65)
-                return 'A';
-            if (ascii > 90)
-                return 'Z';
-            return (char) Math.max(65, Math.min(90, ascii));
-        } else if (ascii >= 97 - 10 && ascii <= 122 + 10) {
-            // Correct to a-z range
-            if (ascii < 97)
-                return 'a';
-            if (ascii > 122)
-                return 'z';
-            return (char) Math.max(97, Math.min(122, ascii));
-        } else if (ascii >= 48 - 5 && ascii <= 57 + 5) {
-            // Correct to 0-9 range
-            if (ascii < 48)
-                return '0';
-            if (ascii > 57)
-                return '9';
-            return (char) Math.max(48, Math.min(57, ascii));
-        } else if (ascii >= 43 - 5 && ascii <= 43 + 5) {
-            return '+';
-        } else if (ascii >= 47 - 5 && ascii <= 47 + 5) {
-            return '/';
-        } else if (ascii >= 61 - 5 && ascii <= 61 + 5) {
-            return '=';
-        }
-
-        // If no specific correction possible, try to map to closest valid Base64 char
-        return findClosestBase64Char(c);
-    }
-
-    private String selectBestExtractionFromMap(Map<String, String> results) {
-        if (results.isEmpty()) {
-            return "";
-        }
-
-        // Prefer results that are closer to expected length (12 characters)
-        String bestResult = "";
-        int bestScore = -1;
-
-        for (Map.Entry<String, String> entry : results.entrySet()) {
-            String result = entry.getValue();
-            int score = calculateResultScore(result);
-
-            System.out.println("Strategy: " + entry.getKey() + ", Result: '" + result + "', Score: " + score);
-
-            if (score > bestScore) {
-                bestScore = score;
-                bestResult = result;
-            }
-        }
-
-        System.out.println("Selected best result: '" + bestResult + "' with score: " + bestScore);
-        return bestResult;
-    }
-
-    private int calculateResultScore(String result) {
-        int score = 0;
-
-        // Base score for valid Base64
-        if (isValidBase64(result)) {
-            score += 100;
-        }
-
-        // Length preference (closer to 12 is better)
-        int lengthDiff = Math.abs(result.length() - 12);
-        score += Math.max(0, 50 - lengthDiff * 5);
-
-        // Bonus for having proper Base64 ending
-        if (result.endsWith("==") || result.endsWith("=")) {
-            score += 20;
-        }
-
-        // Penalty for very short results
-        if (result.length() < 8) {
-            score -= 30;
-        }
-
-        return score;
-    }
-
-    private String reconstructBase64Message(String rawMessage) {
-        // More lenient Base64 reconstruction for longer messages
-        StringBuilder base64Chars = new StringBuilder();
-
-        // First pass: extract obvious Base64 characters
-        for (char c : rawMessage.toCharArray()) {
-            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-                    (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '=') {
-                base64Chars.append(c);
-            }
-        }
-
-        String filtered = base64Chars.toString();
-        System.out.println("Initial Base64 filter result: '" + filtered + "'");
-
-        // If we have fewer characters than expected, try aggressive pattern matching
-        if (filtered.length() < rawMessage.length() * 0.8) { // More lenient threshold
-            StringBuilder reconstructed = new StringBuilder();
-
-            for (int i = 0; i < rawMessage.length(); i++) {
-                char c = rawMessage.charAt(i);
-                int ascii = (int) c;
-
-                // Try to map common corruption patterns to Base64 characters
-                if (ascii >= 'A' && ascii <= 'Z') {
-                    reconstructed.append(c);
-                } else if (ascii >= 'a' && ascii <= 'z') {
-                    reconstructed.append(c);
-                } else if (ascii >= '0' && ascii <= '9') {
-                    reconstructed.append(c);
-                } else if (c == '+' || c == '/' || c == '=') {
-                    reconstructed.append(c);
-                } else if (ascii >= 200 && ascii <= 255) {
-                    // High ASCII values might be corrupted uppercase letters
-                    char corrected = (char) ('A' + (ascii % 26));
-                    reconstructed.append(corrected);
-                    System.out.println("Corrected high ASCII " + ascii + " to '" + corrected + "'");
-                } else if (ascii >= 160 && ascii <= 199) {
-                    // Mid-high ASCII values might be corrupted lowercase letters
-                    char corrected = (char) ('a' + (ascii % 26));
-                    reconstructed.append(corrected);
-                    System.out.println("Corrected mid ASCII " + ascii + " to '" + corrected + "'");
-                } else if (ascii >= 48 && ascii <= 127) {
-                    // Printable ASCII range - try to find closest Base64 character
-                    char corrected = findClosestBase64Char(c);
-                    if (corrected != c) {
-                        reconstructed.append(corrected);
-                        System.out.println("Corrected '" + c + "' to '" + corrected + "'");
-                    } else {
-                        reconstructed.append(c); // Keep original if it's already close
-                    }
-                }
-            }
-
-            filtered = reconstructed.toString();
-            System.out.println("Aggressive reconstruction result: '" + filtered + "'");
-        }
-
-        // Ensure minimum length and proper padding - more lenient for longer messages
-        if (filtered.length() < 4) {
-            throw new IllegalArgumentException("Could not extract sufficient Base64 data. " +
-                    "Got: '" + filtered + "' from raw: '" + rawMessage + "'");
-        }
-
-        // Ensure proper Base64 padding
-        while (filtered.length() % 4 != 0) {
-            filtered += "=";
-        }
-
-        // Final validation - more lenient for longer messages
-        if (!isValidBase64(filtered)) {
-            // Try to salvage what we can by removing invalid characters
-            String salvaged = filtered.replaceAll("[^A-Za-z0-9+/=]", "");
-            while (salvaged.length() % 4 != 0) {
-                salvaged += "=";
-            }
-
-            if (isValidBase64(salvaged) && salvaged.length() >= 4) {
-                System.out.println("Salvaged Base64 result: '" + salvaged + "'");
-                return salvaged;
-            }
-
-            throw new IllegalArgumentException("Could not reconstruct valid Base64 message. " +
-                    "Final result: '" + filtered + "' from raw: '" + rawMessage + "'");
-        }
-
-        return filtered;
-    }
-
-    private char findClosestBase64Char(char c) {
-        String base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-        int minDistance = Integer.MAX_VALUE;
-        char closest = c;
-
-        for (char b64Char : base64Chars.toCharArray()) {
-            int distance = Math.abs((int) c - (int) b64Char);
-            if (distance < minDistance) {
-                minDistance = distance;
-                closest = b64Char;
-            }
-        }
-
-        return closest;
-    }
-
-    private void extractFrames(String videoPath, String framesDir) throws Exception {
-        new ProcessBuilder("ffmpeg", "-i", videoPath, framesDir + "/frame_%06d.png", "-y")
-                .inheritIO().start().waitFor();
-    }
-
-    private void cleanup(Path... paths) throws IOException {
-        for (Path path : paths) {
             if (Files.isDirectory(path)) {
-                Files.walk(path).sorted(Comparator.reverseOrder()).forEach(p -> {
-                    try {
-                        Files.delete(p);
-                    } catch (IOException ignored) {
-                    }
-                });
+                Files.walk(path)
+                        .sorted(Comparator.reverseOrder())
+                        .forEach(q -> {
+                            try {
+                                Files.deleteIfExists(q);
+                            } catch (IOException ignored) {
+                            }
+                        });
             } else {
                 Files.deleteIfExists(path);
             }
+        } catch (IOException ignored) {
         }
     }
 
-    private void extractInitialFrames(String videoPath, String framesDir, int maxFrames) throws Exception {
-        // Extract only the initial frames where steganography data would be stored
-        String framePattern = framesDir + "/frame_%06d.png";
-        ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-i", videoPath,
-                "-vf", "select=lt(n\\," + maxFrames + ")",
-                "-vsync", "vfr",
-                "-q:v", "1", // Highest quality extraction
-                framePattern, "-y");
-
-        pb.redirectErrorStream(true);
-        Process process = pb.start();
-
-        // Read output for debugging
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        String line;
-        while ((line = reader.readLine()) != null) {
-            if (line.contains("error") || line.contains("Error")) {
-                System.out.println("FFmpeg: " + line);
-            }
-        }
-        reader.close();
-
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            // Fallback to extracting all frames if selective extraction fails
-            new ProcessBuilder("ffmpeg", "-i", videoPath, framePattern, "-y")
-                    .inheritIO().start().waitFor();
-        }
-
-        System.out.println("Extracted initial frames for decoding");
+    // ===== Result record for detailed decode =====
+    public record DecodingResult(
+            String plaintext,
+            String ciphertext,
+            int chunksRecovered,
+            int framesScanned) {
     }
 }
