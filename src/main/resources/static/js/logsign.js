@@ -122,32 +122,45 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             // Send login request to the server
-            fetch('/login', {
+            fetch('/api/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded'
                 },
                 body: `email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`
             })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        // Store login status in localStorage
-                        localStorage.setItem('loggedIn', 'true');
-                        localStorage.setItem('email', email);
+                .then(async response => {
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.indexOf('application/json') !== -1) {
+                        const data = await response.json();
+                        if (data.status === 'success') {
+                            localStorage.setItem('loggedIn', 'true');
+                            localStorage.setItem('email', email);
 
-                        // Redirect to home page
-                        if (data.redirectUrl) {
-                            window.location.href = data.redirectUrl;
+                            if (data.redirectUrl) {
+                                window.location.href = data.redirectUrl;
+                            } else {
+                                window.location.href = '/home';
+                            }
                         } else {
-                            window.location.href = '/home'; // Default redirect if no URL provided
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Login Error',
+                                text: data.message || 'Login failed. Please try again.',
+                            });
                         }
                     } else {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Login Error',
-                            text: data.message || 'Login failed. Please try again.',
-                        });
+                        // If not JSON, check if redirected to /login?error=true
+                        if (response.url && response.url.includes('/login?error=true')) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Login Error',
+                                text: 'Invalid email or password. Please try again.',
+                            });
+                        } else {
+                            // If not redirected, assume login success and go to /home
+                            window.location.href = '/home';
+                        }
                     }
                 })
                 .catch(error => {
@@ -218,5 +231,3 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 });
-
-

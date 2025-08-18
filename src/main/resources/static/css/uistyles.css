@@ -132,6 +132,13 @@ a {
     left: 70px;
 }
 
+/* Remove margin for forgot password prompt */
+form p:has(a[href="/Forgotpassword"]) {
+    margin-top: 5px;
+    margin-bottom: 0;
+    text-align: right;
+}
+
 @media (max-width: 500px) {
     .background {
         width: 100vw;
