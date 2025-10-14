@@ -96,7 +96,7 @@ document.getElementById('decode-btn').addEventListener('click', async function (
             Swal.fire({
                 icon: 'error',
                 title: 'Server Error',
-                text: `Server Error: ${errorMessage}`
+                text: `${errorMessage}`
             });
         }
 
