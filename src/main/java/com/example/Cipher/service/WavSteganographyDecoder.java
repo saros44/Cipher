@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Random;
+import java.nio.ByteBuffer;
 
 @Service
 public class WavSteganographyDecoder {
@@ -16,6 +18,16 @@ public class WavSteganographyDecoder {
     private static final Logger logger = LoggerFactory.getLogger(WavSteganographyDecoder.class);
     private static final int HEADER_SIZE = 44; // WAV header size in bytes
     private static final byte MESSAGE_DELIMITER = (byte) 0xFF; // End of message delimiter
+
+    // Deterministic mask bitstream derived from key bytes (must match encoder)
+    private static class MaskingBitStream {
+        private final Random rnd;
+        MaskingBitStream(byte[] keyBytes) {
+            long seed = ByteBuffer.wrap(keyBytes).getLong();
+            this.rnd = new Random(seed);
+        }
+        int nextBit() { return rnd.nextInt(2); }
+    }
 
     public String decodeMessageFromWav(MultipartFile inputWavFile, String key) throws IOException {
         byte[] audioBytes;
@@ -41,9 +53,12 @@ public class WavSteganographyDecoder {
             int keyLength = decodeInt(audioBytes, audioIndex);
             audioIndex += 32;
 
-            // Decode key bytes
+            // Initialize masking stream derived from key
+            MaskingBitStream maskStream = new MaskingBitStream(keyBytes);
+
+            // Decode key bytes (masked)
             byte[] decodedKeyBytes = new byte[keyLength];
-            decodeBytes(audioBytes, audioIndex, decodedKeyBytes);
+            decodeBytesMasked(audioBytes, audioIndex, decodedKeyBytes, maskStream);
             audioIndex += keyLength * 8;
 
             // Verify the decoded key
@@ -54,7 +69,7 @@ public class WavSteganographyDecoder {
                 throw new IllegalArgumentException(errorMessage);
             }
 
-            // Decode message length
+            // Decode message length (unmasked)
             int messageLength = decodeInt(audioBytes, audioIndex);
             audioIndex += 32;
 
@@ -64,13 +79,13 @@ public class WavSteganographyDecoder {
                 throw new IllegalArgumentException(errorMessage);
             }
 
-            // Decode message bytes
+            // Decode message bytes (masked)
             byte[] messageBytes = new byte[messageLength];
-            decodeBytes(audioBytes, audioIndex, messageBytes);
+            decodeBytesMasked(audioBytes, audioIndex, messageBytes, maskStream);
             audioIndex += messageLength * 8;
 
-            // Check for delimiter
-            if (!checkDelimiter(audioBytes, audioIndex)) {
+            // Check for delimiter (masked)
+            if (!checkMaskedDelimiter(audioBytes, audioIndex, maskStream)) {
                 String errorMessage = "Message delimiter not found; likely no encoded message present.";
                 logger.error(errorMessage);
                 throw new IllegalArgumentException(errorMessage);
@@ -109,10 +124,40 @@ public class WavSteganographyDecoder {
         }
     }
 
+    // New: masked variant that XOR-unmasks each bit using mask stream
+    private void decodeBytesMasked(byte[] audioBytes, int startIndex, byte[] dataBytes, MaskingBitStream maskStream) {
+        int audioIndex = startIndex;
+        for (int i = 0; i < dataBytes.length; i++) {
+            byte b = 0;
+            for (int bit = 0; bit < 8; bit++) {
+                int storedBit = (audioBytes[audioIndex] & 0x01);
+                int maskBit = maskStream.nextBit();
+                int dataBit = storedBit ^ maskBit;
+                b = (byte) ((b << 1) | dataBit);
+                audioIndex++;
+            }
+            dataBytes[i] = b;
+        }
+    }
+
     private boolean checkDelimiter(byte[] audioBytes, int startIndex) {
         for (int bit = 0; bit < 8; bit++) {
             int bitValue = (audioBytes[startIndex] & 0x01);
             if (bitValue != ((MESSAGE_DELIMITER >> (7 - bit)) & 1)) {
+                return false;
+            }
+            startIndex++;
+        }
+        return true;
+    }
+
+    // New: masked delimiter check
+    private boolean checkMaskedDelimiter(byte[] audioBytes, int startIndex, MaskingBitStream maskStream) {
+        for (int bit = 0; bit < 8; bit++) {
+            int storedBit = (audioBytes[startIndex] & 0x01);
+            int maskBit = maskStream.nextBit();
+            int dataBit = storedBit ^ maskBit;
+            if (dataBit != ((MESSAGE_DELIMITER >> (7 - bit)) & 1)) {
                 return false;
             }
             startIndex++;

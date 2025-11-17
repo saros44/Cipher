@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.Random;
+import java.nio.ByteBuffer;
 
 @Service
 public class WavSteganography {
@@ -16,6 +18,18 @@ public class WavSteganography {
     private static final Logger logger = LoggerFactory.getLogger(WavSteganography.class);
     private static final int HEADER_SIZE = 44; // WAV header size in bytes
     private static final byte MESSAGE_DELIMITER = (byte) 0xFF; // End of message delimiter (used to mark end of hidden message)
+
+    // Simple deterministic mask bitstream derived from key bytes
+    private static class MaskingBitStream {
+        private final Random rnd;
+        MaskingBitStream(byte[] keyBytes) {
+            long seed = ByteBuffer.wrap(keyBytes).getLong();
+            this.rnd = new Random(seed);
+        }
+        int nextBit() {
+            return rnd.nextInt(2); // 0 or 1
+        }
+    }
 
     // Main method to encode message into WAV file
     public SteganographyResult encodeMessageIntoWav(MultipartFile inputWavFile, String message, String key) throws IOException {
@@ -48,7 +62,10 @@ public class WavSteganography {
             audioIndex += 32;  // Move the index forward after encoding 4 bytes (32 bits)
             keySNRPostKeyLength = calculateSNR(inputWavFile.getBytes(), audioBytes);  // Calculate SNR after encoding key length
 
-            encodeBytesIntoAudio(audioBytes, audioIndex, keyBytes);  // Encode the key itself
+            // Initialize masking stream derived from key
+            MaskingBitStream maskStream = new MaskingBitStream(keyBytes);
+
+            encodeBytesIntoAudioMasked(audioBytes, audioIndex, keyBytes, maskStream);  // Encode the key itself with XOR mask
             audioIndex += keyBytes.length * 8;  // Move the index forward by the number of bits used by the key
             messageLengthSNR = calculateSNR(inputWavFile.getBytes(), audioBytes);  // Calculate SNR after encoding the key
 
@@ -57,12 +74,12 @@ public class WavSteganography {
             audioIndex += 32;  // Move the index forward after encoding the message length
             messageSNR = calculateSNR(inputWavFile.getBytes(), audioBytes);  // Calculate SNR after encoding message length
 
-            encodeBytesIntoAudio(audioBytes, audioIndex, messageBytes);  // Encode the actual message into the audio file
+            encodeBytesIntoAudioMasked(audioBytes, audioIndex, messageBytes, maskStream);  // Encode the actual message with XOR mask
             audioIndex += messageBytes.length * 8;  // Move the index forward by the number of bits in the message
             delimiterSNR = calculateSNR(inputWavFile.getBytes(), audioBytes);  // Calculate SNR after encoding message
 
             // Add delimiter to indicate the end of the encoded message
-            encodeByte(audioBytes, audioIndex);  // Add delimiter byte to mark the end of the message
+            encodeMaskedDelimiter(audioBytes, audioIndex, maskStream);  // Add masked delimiter byte to mark the end of the message
 
             // Final SNR after encoding
             finalSNR = calculateSNR(inputWavFile.getBytes(), audioBytes);  // Calculate the final SNR after all encoding
@@ -141,7 +158,7 @@ public class WavSteganography {
         }
     }
 
-    // Encode a byte array into the audio file using LSB encoding
+    // Encode a byte array into the audio file using LSB encoding (legacy, unmasked)
     private void encodeBytesIntoAudio(byte[] audioBytes, int startIndex, byte[] dataBytes) {
         int audioIndex = startIndex;
         for (byte b : dataBytes) {
@@ -153,11 +170,36 @@ public class WavSteganography {
         }
     }
 
-    // Encode a single byte (delimiter) to mark the end of the message
+    // New: Encode a byte array into audio using XOR-masked LSB based on key-derived stream
+    private void encodeBytesIntoAudioMasked(byte[] audioBytes, int startIndex, byte[] dataBytes, MaskingBitStream maskStream) {
+        int audioIndex = startIndex;
+        for (byte b : dataBytes) {
+            for (int bit = 0; bit < 8; bit++) {
+                int dataBit = (b >> (7 - bit)) & 1;
+                int maskBit = maskStream.nextBit();
+                int bitValue = dataBit ^ maskBit;
+                audioBytes[audioIndex] = (byte) ((audioBytes[audioIndex] & 0xFE) | bitValue);
+                audioIndex++;
+            }
+        }
+    }
+
+    // Encode a single byte (delimiter) to mark the end of the message (legacy, unmasked)
     private void encodeByte(byte[] audioBytes, int startIndex) {
         for (int bit = 0; bit < 8; bit++) {
             int bitValue = (MESSAGE_DELIMITER >> (7 - bit)) & 1;  // Get each bit of the delimiter
             audioBytes[startIndex] = (byte) ((audioBytes[startIndex] & 0xFE) | bitValue);  // Set LSB in audio byte
+            startIndex++;
+        }
+    }
+
+    // New: Encode masked delimiter byte using XOR with mask stream
+    private void encodeMaskedDelimiter(byte[] audioBytes, int startIndex, MaskingBitStream maskStream) {
+        for (int bit = 0; bit < 8; bit++) {
+            int dataBit = (MESSAGE_DELIMITER >> (7 - bit)) & 1;
+            int maskBit = maskStream.nextBit();
+            int bitValue = dataBit ^ maskBit;
+            audioBytes[startIndex] = (byte) ((audioBytes[startIndex] & 0xFE) | bitValue);
             startIndex++;
         }
     }
