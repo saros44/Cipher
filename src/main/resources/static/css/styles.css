@@ -318,12 +318,13 @@ textarea {
     border-radius: 5px;
     background-color: #192633;
     color: #ffffff;
+    pointer-events: auto; /* ensure input is interactable */
 }
 
 #max-length {
     display: block;
     margin-bottom: 5px;
-    color: #555;
+    color: #ddd; /* higher contrast on dark background */
     text-align: left;
     width: 200px;
     font-size: 0.875rem;
@@ -332,6 +333,11 @@ textarea {
 textarea {
     height: 100px;
     resize: none;
+}
+
+.message-box {
+    position: relative;
+    z-index: 2; /* ensure message box is above adjacent upload box */
 }
 
 /* Key Error Styling */

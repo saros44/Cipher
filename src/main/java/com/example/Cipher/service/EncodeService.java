@@ -9,6 +9,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class EncodeService {
@@ -37,12 +38,12 @@ public class EncodeService {
         String encryptedMessage = AesUtil.encrypt(message, key);
 
         // Scramble the encrypted message bytes
-        byte[] scrambled = scrambleBits(encryptedMessage.getBytes("UTF-8"));
-        String scrambledMessage = new String(scrambled, "ISO-8859-1");
+        byte[] scrambled = scrambleBits(encryptedMessage.getBytes(StandardCharsets.UTF_8));
+        String scrambledMessage = new String(scrambled, StandardCharsets.ISO_8859_1);
 
         BufferedImage bufferedImage = ImageIO.read(image.getInputStream());
 
-        // Capacity check based on available positions across blocks (now multiple bits per block)
+        // Capacity check based on available blocks (one parity bit per block)
         int width = bufferedImage.getWidth();
         int height = bufferedImage.getHeight();
         int availableHeight = height - 1; // exclude first row y=0
@@ -52,23 +53,25 @@ public class EncodeService {
         int blocksX = (width + 7) / 8; // ceil(width/8)
         int blocksY = (availableHeight + 7) / 8; // ceil((height-1)/8)
 
-        // Compute exact capacity in bits by counting valid positions inside each block
+        // Compute exact capacity in bits: one bit per block that has at least one valid position
         int capacityBits = 0;
         for (int by = 0; by < blocksY; by++) {
             for (int bx = 0; bx < blocksX; bx++) {
                 int startX = bx * 8;
-                int startY = 1 + by * 8;
                 int blockW = Math.min(8, width - startX);
                 int blockH = Math.min(8, (height - 1) - by * 8);
                 if (blockW <= 0 || blockH <= 0) continue;
                 int rowIdx = (bx + by) % BLOCK_POSITIONS.length;
                 int[] positions = BLOCK_POSITIONS[rowIdx];
+                boolean hasValid = false;
                 for (int p : positions) {
                     int localX = p % 8;
                     int localY = p / 8;
                     if (localX >= blockW || localY >= blockH) continue;
-                    capacityBits++;
+                    hasValid = true;
+                    break;
                 }
+                if (hasValid) capacityBits++;
             }
         }
 
@@ -81,7 +84,7 @@ public class EncodeService {
         // Encode the AES key in the image (first row, red channel)
         encodeKeyIntoImage(bufferedImage, secretKey);
 
-        // Encode the scrambled (encrypted) message using per-position LSB embedding
+        // Encode the scrambled (encrypted) message using parity-per-block embedding
         BufferedImage encodedImage = encodeMessageIntoImage(bufferedImage, scrambledMessage);
 
         return encodeImageToBytes(encodedImage);
@@ -117,7 +120,7 @@ public class EncodeService {
         }
     }
 
-    // New embedding: write one bit per valid position in BLOCK_POSITIONS (MSB-first across bytes)
+    // Parity-per-block embedding: for each block, compute parity of LSBs of carriers and flip one carrier LSB if needed
     private BufferedImage encodeMessageIntoImage(BufferedImage image, String message) {
         int width = image.getWidth();
         int height = image.getHeight();
@@ -151,39 +154,54 @@ public class EncodeService {
                 int rowIdx = (bx + by) % BLOCK_POSITIONS.length; // i.e., % 4
                 int[] positions = BLOCK_POSITIONS[rowIdx];
 
+                // collect valid positions for this block
+                int firstPosX = -1, firstPosY = -1;
+                int parity = 0;
                 for (int p : positions) {
-                    int localX = p % 8; // positions are defined for 8x8 blocks
+                    int localX = p % 8;
                     int localY = p / 8;
-                    if (localX >= blockW || localY >= blockH) continue; // position falls outside this (smaller) block
+                    if (localX >= blockW || localY >= blockH) continue;
                     int px = startX + localX;
                     int py = startY + localY;
+                    int rgb = encodedImage.getRGB(px, py);
+                    int blue = rgb & 0xFF;
+                    parity ^= (blue & 1);
+                    if (firstPosX == -1) {
+                        firstPosX = px;
+                        firstPosY = py;
+                    }
+                }
 
-                    if (msgIndex < message.length()) {
-                        int currentByte = message.charAt(msgIndex) & 0xFF;
-                        int bit = (currentByte >> (7 - bitIndex)) & 1; // MSB first
+                if (firstPosX == -1) continue; // no carriers in this block
 
-                        int rgb = encodedImage.getRGB(px, py);
+                if (msgIndex < message.length()) {
+                    int currentByte = message.charAt(msgIndex) & 0xFF;
+                    int desiredBit = (currentByte >> (7 - bitIndex)) & 1; // MSB first
+
+                    // If parity != desiredBit, flip LSB of the first carrier to adjust parity
+                    if (parity != desiredBit) {
+                        int rgb = encodedImage.getRGB(firstPosX, firstPosY);
                         int red = (rgb >> 16) & 0xFF;
                         int green = (rgb >> 8) & 0xFF;
                         int blue = rgb & 0xFF;
 
-                        blue = (blue & 0xFE) | (bit & 1); // set LSB to desired bit
+                        blue = blue ^ 1; // flip LSB
 
                         int newRgb = (red << 16) | (green << 8) | (blue & 0xFF);
-                        encodedImage.setRGB(px, py, newRgb);
+                        encodedImage.setRGB(firstPosX, firstPosY, newRgb);
+                    }
 
-                        bitIndex++;
-                        if (bitIndex == 8) {
-                            bitIndex = 0;
-                            msgIndex++;
-                        }
+                    bitIndex++;
+                    if (bitIndex == 8) {
+                        bitIndex = 0;
+                        msgIndex++;
+                    }
 
-                        if (msgIndex >= message.length()) {
-                            break outer;
-                        }
-                    } else {
+                    if (msgIndex >= message.length()) {
                         break outer;
                     }
+                } else {
+                    break outer;
                 }
             }
         }
@@ -201,9 +219,14 @@ public class EncodeService {
     private byte[] scrambleBits(byte[] in) {
         int[] o = { 2, 5, 0, 7, 1, 4, 6, 3 };
         byte[] out = new byte[in.length];
-        for (int i = 0; i < in.length; i++)
-            for (int b = 0; b < 8; b++)
-                out[i] |= ((in[i] >> o[b]) & 1) << b;
+        for (int i = 0; i < in.length; i++) {
+            int val = in[i] & 0xFF;
+            int res = 0;
+            for (int b = 0; b < 8; b++) {
+                res |= ((val >> o[b]) & 1) << b;
+            }
+            out[i] = (byte) (res & 0xFF);
+        }
         return out;
     }
 }

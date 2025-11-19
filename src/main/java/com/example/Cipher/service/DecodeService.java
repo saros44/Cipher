@@ -10,6 +10,7 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class DecodeService {
@@ -52,8 +53,8 @@ public class DecodeService {
 
         try {
             // Unscramble the message bytes before decryption
-            byte[] unscrambled = unscrambleBits(encryptedMessage.getBytes("ISO-8859-1"));
-            String unscrambledMessage = new String(unscrambled, "UTF-8");
+            byte[] unscrambled = unscrambleBits(encryptedMessage.getBytes(StandardCharsets.ISO_8859_1));
+            String unscrambledMessage = new String(unscrambled, StandardCharsets.UTF_8);
 
             String decryptedMessage = AesUtil.decrypt(unscrambledMessage, secretKey);
 
@@ -97,6 +98,9 @@ public class DecodeService {
                 int rowIdx = (bx + by) % BLOCK_POSITIONS.length; // deterministic selection
                 int[] positions = BLOCK_POSITIONS[rowIdx];
 
+                // Compute parity over valid positions in this block
+                int parity = 0;
+                boolean hasCarrier = false;
                 for (int p : positions) {
                     int localX = p % 8;
                     int localY = p / 8;
@@ -105,20 +109,24 @@ public class DecodeService {
                     int py = startY + localY;
                     int rgb = encodedImage.getRGB(px, py);
                     int blue = rgb & 0xFF;
+                    parity ^= (blue & 1);
+                    hasCarrier = true;
+                }
 
-                    int bit = blue & 1; // LSB is the embedded bit
-                    // Append this bit MSB-first into currentByte
-                    currentByte = (currentByte << 1) | (bit & 1);
-                    bitCount++;
-                    if (bitCount == 8) {
-                        char c = (char) (currentByte & 0xFF);
-                        if (c == '\0') {
-                            break outer;
-                        }
-                        message.append(c);
-                        currentByte = 0;
-                        bitCount = 0;
+                if (!hasCarrier) continue;
+
+                // Use parity as the extracted bit (MSB-first ordering across bytes)
+                int bit = parity & 1;
+                currentByte = (currentByte << 1) | bit;
+                bitCount++;
+                if (bitCount == 8) {
+                    char c = (char) (currentByte & 0xFF);
+                    if (c == '\0') {
+                        break outer;
                     }
+                    message.append(c);
+                    currentByte = 0;
+                    bitCount = 0;
                 }
             }
         }
@@ -133,9 +141,14 @@ public class DecodeService {
         for (int i = 0; i < 8; i++)
             inv[o[i]] = i;
         byte[] out = new byte[in.length];
-        for (int i = 0; i < in.length; i++)
-            for (int b = 0; b < 8; b++)
-                out[i] |= ((in[i] >> inv[b]) & 1) << b;
+        for (int i = 0; i < in.length; i++) {
+            int val = in[i] & 0xFF;
+            int res = 0;
+            for (int b = 0; b < 8; b++) {
+                res |= ((val >> inv[b]) & 1) << b;
+            }
+            out[i] = (byte) (res & 0xFF);
+        }
         return out;
     }
 
