@@ -17,6 +17,14 @@ public class DecodeService {
     private static final int AES_KEY_SIZE = 16; // AES key size in bytes (128 bits)
     private static final Logger logger = LoggerFactory.getLogger(DecodeService.class);
 
+    // Fully hardcoded positions table matching the encoder
+    private static final int[][] BLOCK_POSITIONS = new int[][]{
+            {0, 3, 5, 12, 15, 7, 2, 10},
+            {1, 4, 6, 13, 14, 8, 9, 11},
+            {2, 5, 7, 0, 12, 6, 1, 14},
+            {3, 6, 0, 9, 15, 2, 4, 11}
+    };
+
     public String decodeMessage(MultipartFile imageFile, String key) throws IOException {
         BufferedImage encodedImage = ImageIO.read(imageFile.getInputStream());
 
@@ -67,34 +75,48 @@ public class DecodeService {
         int height = encodedImage.getHeight();
 
         StringBuilder message = new StringBuilder();
-        int charBits = 0;
-        int bitCount = 0;
+        int currentByte = 0;
+        int bitCount = 0; // bits collected for current byte
 
-        outer: for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int rgb = encodedImage.getRGB(x, y);
+        int availableHeight = height - 1; // skip first row (AES key)
+        if (availableHeight <= 0) {
+            return "";
+        }
+        int blocksX = (width + 7) / 8;
+        int blocksY = (availableHeight + 7) / 8;
 
-                // Extract 1 bit from each channel (R, G, B)
-                for (int channel = 0; channel < 3; channel++) {
-                    int bit;
-                    if (channel == 0) {
-                        bit = (rgb >> 16) & 1; // Red LSB
-                    } else if (channel == 1) {
-                        bit = (rgb >> 8) & 1; // Green LSB
-                    } else {
-                        bit = rgb & 1; // Blue LSB
-                    }
+        outer:
+        for (int by = 0; by < blocksY; by++) {
+            for (int bx = 0; bx < blocksX; bx++) {
+                int startX = bx * 8;
+                int startY = 1 + by * 8; // start from y=1
+                int blockW = Math.min(8, width - startX);
+                int blockH = Math.min(8, (height - 1) - by * 8);
+                if (blockW <= 0 || blockH <= 0) continue;
 
-                    charBits = (charBits << 1) | bit;
+                int rowIdx = (bx + by) % BLOCK_POSITIONS.length; // deterministic selection
+                int[] positions = BLOCK_POSITIONS[rowIdx];
+
+                for (int p : positions) {
+                    int localX = p % 8;
+                    int localY = p / 8;
+                    if (localX >= blockW || localY >= blockH) continue;
+                    int px = startX + localX;
+                    int py = startY + localY;
+                    int rgb = encodedImage.getRGB(px, py);
+                    int blue = rgb & 0xFF;
+
+                    int bit = blue & 1; // LSB is the embedded bit
+                    // Append this bit MSB-first into currentByte
+                    currentByte = (currentByte << 1) | (bit & 1);
                     bitCount++;
-
                     if (bitCount == 8) {
-                        char c = (char) charBits;
+                        char c = (char) (currentByte & 0xFF);
                         if (c == '\0') {
                             break outer;
                         }
                         message.append(c);
-                        charBits = 0;
+                        currentByte = 0;
                         bitCount = 0;
                     }
                 }

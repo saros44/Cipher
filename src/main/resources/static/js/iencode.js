@@ -142,15 +142,64 @@ function displayHistogram(canvasId, histogram, title) {
     });
 }
 
+// --- New: exact capacity calculation matching encoder positions ---
+const BLOCK_POSITIONS = [
+    [0, 3, 5, 12, 15, 7, 2, 10],
+    [1, 4, 6, 13, 14, 8, 9, 11],
+    [2, 5, 7, 0, 12, 6, 1, 14],
+    [3, 6, 0, 9, 15, 2, 4, 11]
+];
+
 function calculateMaxMessageLength(width, height) {
-    return Math.floor((width * height * 3) / 8) - 1;
+    // Reserve first row (y=0) for AES key as server does
+    const availableHeight = Math.max(0, height - 1);
+    if (availableHeight <= 0 || width <= 0) return 0;
+
+    const blocksX = Math.ceil(width / 8);
+    const blocksY = Math.ceil(availableHeight / 8);
+
+    let capacityBits = 0;
+    for (let by = 0; by < blocksY; by++) {
+        for (let bx = 0; bx < blocksX; bx++) {
+            const startX = bx * 8;
+            const blockW = Math.min(8, width - startX);
+            const blockH = Math.min(8, availableHeight - by * 8);
+            if (blockW <= 0 || blockH <= 0) continue;
+
+            const rowIdx = (bx + by) % BLOCK_POSITIONS.length;
+            const positions = BLOCK_POSITIONS[rowIdx];
+
+            for (const p of positions) {
+                const localX = p % 8;
+                const localY = Math.floor(p / 8);
+                if (localX >= blockW || localY >= blockH) continue;
+                capacityBits++;
+            }
+        }
+    }
+
+    // Capacity in bytes is floor(bits/8). Reserve one byte for the null terminator used by encoder.
+    const capacityBytes = Math.floor(capacityBits / 8);
+    return Math.max(0, capacityBytes - 1);
 }
 
-function displayRemainingLength(maxChars, currentChars) {
-    const remainingChars = maxChars - currentChars;
+// Replace previous display function: show remaining characters (max - currentLength)
+function updateRemainingDisplay(maxChars, currentLength) {
     const maxLengthElement = document.getElementById('max-length');
-    maxLengthElement.textContent = `Characters: ${remainingChars}`;
-    maxLengthElement.dataset.maxChars = maxChars;
+    const textarea = document.getElementById('secret-message');
+
+    if (!maxLengthElement) return;
+
+    const safeMax = Number.isFinite(maxChars) ? Math.max(0, Math.floor(maxChars)) : 0;
+    const curLen = Number.isInteger(currentLength) ? Math.max(0, currentLength) : (textarea ? textarea.value.length : 0);
+
+    const remaining = Math.max(0, safeMax - curLen);
+    // Show label + remaining number (e.g. "characters: 123")
+    maxLengthElement.textContent = 'characters: ' + String(remaining);
+    maxLengthElement.dataset.maxChars = String(safeMax);
+
+    // Ensure the textarea maxlength is kept in sync
+    if (textarea) textarea.maxLength = safeMax;
 }
 
 document.getElementById('image-upload').addEventListener('change', function (event) {
@@ -166,7 +215,9 @@ document.getElementById('image-upload').addEventListener('change', function (eve
             const img = new Image();
             img.onload = function () {
                 const maxChars = calculateMaxMessageLength(img.width, img.height);
-                displayRemainingLength(maxChars, 0);
+                // Set remaining considering current textarea value
+                const current = document.getElementById('secret-message').value.length || 0;
+                updateRemainingDisplay(maxChars, current);
                 document.getElementById('secret-message').maxLength = maxChars;
             };
             img.src = e.target.result;
@@ -175,21 +226,27 @@ document.getElementById('image-upload').addEventListener('change', function (eve
     } else {
         imgElement.src = '/icons/select.png';
         imgElement.classList.remove('active');
-        displayRemainingLength(0, 0);
+        updateRemainingDisplay(0, 0);
     }
 });
 
+// Update input event: decrease displayed number as characters are added
 document.getElementById('secret-message').addEventListener('input', function () {
-    const maxChars = parseInt(document.getElementById('max-length').dataset.maxChars, 10);
-    const currentChars = this.value.length;
-    displayRemainingLength(maxChars, currentChars);
+    const maxChars = parseInt(document.getElementById('max-length').dataset.maxChars || '0', 10);
+    if (!Number.isFinite(maxChars)) return;
+
+    if (this.value.length > maxChars) {
+        this.value = this.value.slice(0, maxChars);
+    }
+
+    updateRemainingDisplay(maxChars, this.value.length);
 });
 
 document.addEventListener('DOMContentLoaded', function () {
     const imgElement = document.getElementById('uploaded-image');
     imgElement.src = '/icons/select.png';
     imgElement.classList.remove('active');
-    displayRemainingLength(0, 0);
+    updateRemainingDisplay(0, 0);
 });
 
 document.getElementById('toggle-key').addEventListener('click', function () {
