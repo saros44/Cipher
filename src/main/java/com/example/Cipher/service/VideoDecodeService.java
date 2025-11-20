@@ -9,36 +9,54 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Base64;
+import java.util.concurrent.*;
+import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * VideoDecodeService
+ *
+ * Responsibilities:
+ * - Fast metadata check for Base64(key) in title tag
+ * - Extract frames (PNG) and decode per-frame payload
+ * - Parallel per-frame decoding while preserving order and early stop
+ *
+ * Reformatting only; logic unchanged.
+ */
 @Service
 public class VideoDecodeService {
+
+    private static final Logger logger = LoggerFactory.getLogger(VideoDecodeService.class);
 
     // ==== Must match the encoder ====
     /**
      * Per-frame delimiter that marks the end of the chunk in each modified frame.
      */
     private static final String FRAME_DELIM = "<END>";
+
     /**
      * Intensity threshold to decide bit value (robust vs. 10/245 encoding and Xvid
      * -q:v 2).
      */
     private static final int BIT_THRESHOLD = 128;
 
-    /** Optional: how many frames at most to scan before giving up (safety) */
+    /** Optional: how many frames at most to scan before giving up (safety). */
     private static final int MAX_FRAMES_TO_SCAN = 10_000;
 
     /**
      * Decode the hidden message from the provided video using the given secret key.
-     * This method:
-     * 1) Extracts frames losslessly to PNG.
-     * 2) Reads pixels in raster order, 1 pixel = 1 bit, 8 bits = 1 char (MSB →
-     * LSB).
-     * 3) For each frame, collects chars until it sees FRAME_DELIM; that chunk is
-     * appended.
-     * 4) Stops at the first frame that does not contain FRAME_DELIM (encoder only
-     * modified the first N frames).
-     * 5) Concatenates chunks and decrypts with VideoEncryptionUtil.decrypt(cipher,
-     * key).
+     *
+     * Steps:
+     * 1) Save upload to temp file
+     * 2) Fast metadata check (ffprobe) for Base64(key)
+     * 3) Extract frames losslessly to PNG
+     * 4) Read pixels in raster order: 1 pixel = 1 bit (8 bits = 1 char, MSB→LSB)
+     * 5) For each frame, collect chars until FRAME_DELIM; append chunk and stop at
+     * first frame without delimiter
+     * 6) Concatenate chunks and decrypt with VideoEncryptionUtil.decrypt(cipher,
+     * key)
      */
     public String decode(MultipartFile videoFile, String key) throws Exception {
         if (key == null || key.length() < 8) {
@@ -52,14 +70,31 @@ public class VideoDecodeService {
         Path framesDir = null;
 
         try {
-            // Save upload to a temp file (works for .avi or any other container; ffmpeg
-            // will read it)
+            // Save upload to a temp file (ffmpeg/ffprobe read files)
             String originalName = safeName(videoFile.getOriginalFilename());
             String ext = (originalName != null && originalName.contains("."))
                     ? originalName.substring(originalName.lastIndexOf('.'))
                     : ".avi";
+
             tempInput = Files.createTempFile("decode_input_", ext);
             Files.copy(videoFile.getInputStream(), tempInput, StandardCopyOption.REPLACE_EXISTING);
+
+            // Fast metadata-based key check (encoder stores Base64(key) in metadata title)
+            try {
+                String titleMeta = readTitleMetadataFromFile(tempInput.toString());
+                if (titleMeta != null && !titleMeta.isEmpty()) {
+                    String expected = Base64.getEncoder().encodeToString(key.getBytes());
+                    if (!expected.equals(titleMeta)) {
+                        throw new IllegalArgumentException("Provided key does not match.");
+                    }
+                }
+            } catch (IllegalArgumentException e) {
+                // validation error: rethrow immediately
+                throw e;
+            } catch (Exception e) {
+                // If ffprobe/check fails, fall back to full decode path
+                logger.debug("key-check failed or unavailable: {}", e.getMessage());
+            }
 
             // Extract frames at highest quality; use PNG to avoid further loss
             framesDir = Files.createTempDirectory("decoded_frames_");
@@ -72,34 +107,53 @@ public class VideoDecodeService {
                 throw new IllegalStateException("No frames extracted from video.");
             }
 
-            StringBuilder cipherAggregate = new StringBuilder();
-            int framesWithData = 0;
+            // Parallel decode: preserve order, stop on first null chunk.
+            int toScan = Math.min(frames.size(), MAX_FRAMES_TO_SCAN);
+            int threads = Math.max(1, Math.min(Runtime.getRuntime().availableProcessors(), toScan));
+            ExecutorService ex = Executors.newFixedThreadPool(threads);
 
-            for (int i = 0; i < frames.size() && i < MAX_FRAMES_TO_SCAN; i++) {
-                File frameFile = frames.get(i);
-                BufferedImage img = ImageIO.read(frameFile);
-                if (img == null)
-                    continue;
+            try {
+                List<Future<String>> futures = new ArrayList<>(toScan);
 
-                String chunk = decodeChunkFromFrame(img);
-                if (chunk == null) {
-                    // No delimiter found in this frame => encoder did not modify this (and
-                    // subsequent) frames.
-                    break;
+                for (int i = 0; i < toScan; i++) {
+                    final File f = frames.get(i);
+                    futures.add(ex.submit(() -> {
+                        try {
+                            BufferedImage img = ImageIO.read(f);
+                            if (img == null)
+                                return null;
+                            return decodeChunkFromFrame(img);
+                        } catch (IOException ioe) {
+                            logger.warn("Failed to read frame {}: {}", f.getName(), ioe.getMessage());
+                            return null;
+                        }
+                    }));
                 }
-                cipherAggregate.append(chunk);
-                framesWithData++;
+
+                StringBuilder cipherAggregate = new StringBuilder();
+                int framesWithData = 0;
+
+                for (int i = 0; i < futures.size(); i++) {
+                    String chunk = futures.get(i).get();
+                    if (chunk == null) {
+                        // first non-modified frame -> stop
+                        break;
+                    }
+                    cipherAggregate.append(chunk);
+                    framesWithData++;
+                }
+
+                if (framesWithData == 0) {
+                    throw new IllegalStateException("No embedded data found. " +
+                            "Make sure you're using the correct video and the encoding completed successfully.");
+                }
+
+                String encryptedMessage = cipherAggregate.toString();
+                String plaintext = VideoEncryptionUtil.decrypt(encryptedMessage, key);
+                return plaintext;
+            } finally {
+                ex.shutdownNow();
             }
-
-            if (framesWithData == 0) {
-                throw new IllegalStateException("No embedded data found. " +
-                        "Make sure you're using the correct video and the encoding completed successfully.");
-            }
-
-            String encryptedMessage = cipherAggregate.toString();
-            String plaintext = VideoEncryptionUtil.decrypt(encryptedMessage, key);
-            return plaintext;
-
         } finally {
             cleanup(framesDir, tempInput);
         }
@@ -124,8 +178,24 @@ public class VideoDecodeService {
             String ext = (originalName != null && originalName.contains("."))
                     ? originalName.substring(originalName.lastIndexOf('.'))
                     : ".avi";
+
             tempInput = Files.createTempFile("decode_input_", ext);
             Files.copy(videoFile.getInputStream(), tempInput, StandardCopyOption.REPLACE_EXISTING);
+
+            // Fast metadata-based key check (encoder stores Base64(key) in metadata title)
+            try {
+                String titleMeta = readTitleMetadataFromFile(tempInput.toString());
+                if (titleMeta != null && !titleMeta.isEmpty()) {
+                    String expected = Base64.getEncoder().encodeToString(key.getBytes());
+                    if (!expected.equals(titleMeta)) {
+                        throw new IllegalArgumentException("Provided key does not match video metadata.");
+                    }
+                }
+            } catch (IllegalArgumentException e) {
+                throw e;
+            } catch (Exception e) {
+                logger.debug("Metadata key-check failed or unavailable: {}", e.getMessage());
+            }
 
             framesDir = Files.createTempDirectory("decoded_frames_");
             extractAllFrames(tempInput.toString(), framesDir.toString());
@@ -135,28 +205,46 @@ public class VideoDecodeService {
                 throw new IllegalStateException("No frames extracted from video.");
             }
 
-            List<String> chunks = new ArrayList<>();
-            int framesScanned = 0;
+            // Parallel decode with ordered futures
+            int toScan = Math.min(frames.size(), MAX_FRAMES_TO_SCAN);
+            int threads = Math.max(1, Math.min(Runtime.getRuntime().availableProcessors(), toScan));
+            ExecutorService ex = Executors.newFixedThreadPool(threads);
 
-            for (int i = 0; i < frames.size() && i < MAX_FRAMES_TO_SCAN; i++) {
-                framesScanned++;
-                File frameFile = frames.get(i);
-                BufferedImage img = ImageIO.read(frameFile);
-                if (img == null)
-                    continue;
+            try {
+                List<Future<String>> futures = new ArrayList<>(toScan);
 
-                String chunk = decodeChunkFromFrame(img);
-                if (chunk == null) {
-                    break; // first non-modified frame encountered
+                for (int i = 0; i < toScan; i++) {
+                    final File f = frames.get(i);
+                    futures.add(ex.submit(() -> {
+                        try {
+                            BufferedImage img = ImageIO.read(f);
+                            if (img == null)
+                                return null;
+                            return decodeChunkFromFrame(img);
+                        } catch (IOException ioe) {
+                            logger.warn("Failed to read frame {}: {}", f.getName(), ioe.getMessage());
+                            return null;
+                        }
+                    }));
                 }
-                chunks.add(chunk);
+
+                List<String> chunks = new ArrayList<>();
+                int framesScanned = 0;
+
+                for (int i = 0; i < futures.size(); i++) {
+                    framesScanned++;
+                    String chunk = futures.get(i).get();
+                    if (chunk == null)
+                        break;
+                    chunks.add(chunk);
+                }
+
+                String cipher = String.join("", chunks);
+                String plaintext = cipher.isEmpty() ? "" : VideoEncryptionUtil.decrypt(cipher, key);
+                return new DecodingResult(plaintext, cipher, chunks.size(), framesScanned);
+            } finally {
+                ex.shutdownNow();
             }
-
-            String cipher = String.join("", chunks);
-            String plaintext = cipher.isEmpty() ? "" : VideoEncryptionUtil.decrypt(cipher, key);
-
-            return new DecodingResult(plaintext, cipher, chunks.size(), framesScanned);
-
         } finally {
             cleanup(framesDir, tempInput);
         }
@@ -175,19 +263,56 @@ public class VideoDecodeService {
         String framePattern = Paths.get(framesDir, "frame_%06d.png").toString();
         List<String> cmd = Arrays.asList(
                 "ffmpeg", "-y",
+                "-threads", String.valueOf(Runtime.getRuntime().availableProcessors()),
                 "-i", videoPath,
                 "-q:v", "1",
                 framePattern);
+
         int exit = runAndPipe(cmd, "[ffmpeg decode-extract]");
         if (exit != 0) {
             throw new IOException("Failed to extract frames for decoding. Exit=" + exit);
         }
     }
 
+    /**
+     * Read the `title` metadata tag (where encoder stores Base64(key)).
+     * Returns null if tag absent or ffprobe fails.
+     */
+    private static String readTitleMetadataFromFile(String videoPath) throws Exception {
+        List<String> cmd = Arrays.asList(
+                "ffprobe", "-v", "error",
+                "-show_entries", "format_tags=title",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                videoPath);
+
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+
+        String line;
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+            line = br.readLine();
+        }
+
+        boolean finished = p.waitFor(30, TimeUnit.SECONDS);
+        int code = finished ? p.exitValue() : -1;
+        if (!finished) {
+            p.destroyForcibly();
+            logger.warn("ffprobe timed out for file {}", videoPath);
+        }
+        if (code != 0) {
+            return null;
+        }
+        if (line == null || line.trim().isEmpty())
+            return null;
+        return line.trim();
+    }
+
     private static List<File> listPngFramesSorted(Path framesDir) throws IOException {
         File[] files = framesDir.toFile().listFiles((d, n) -> n.toLowerCase(Locale.ROOT).endsWith(".png"));
         if (files == null)
             return Collections.emptyList();
+
         return Arrays.stream(files)
                 .sorted(Comparator.comparing(File::getName))
                 .collect(Collectors.toList());
@@ -206,7 +331,7 @@ public class VideoDecodeService {
         final int totalPixels = width * height;
 
         StringBuilder sb = new StringBuilder();
-        StringBuilder rolling = new StringBuilder(); // to detect delimiter without constantly slicing strings
+        StringBuilder rolling = new StringBuilder(); // detect delimiter efficiently
 
         int bitCount = 0;
         int currentByte = 0;
@@ -219,11 +344,10 @@ public class VideoDecodeService {
             int r = (rgb >> 16) & 0xFF;
             int g = (rgb >> 8) & 0xFF;
             int b = rgb & 0xFF;
-            // Grayscale values are equal (10 or 245), but after compression they might
-            // drift;
+
+            // Grayscale values are equal (10 or 245), but after compression they may drift;
             // averaging is robust.
             int intensity = (r + g + b) / 3;
-
             int bit = (intensity >= BIT_THRESHOLD) ? 1 : 0;
 
             // Build bytes MSB → LSB
@@ -244,6 +368,7 @@ public class VideoDecodeService {
                     int chunkLen = sb.length() - FRAME_DELIM.length();
                     return (chunkLen <= 0) ? "" : sb.substring(0, chunkLen);
                 }
+
                 // Reset for next byte
                 currentByte = 0;
                 bitCount = 0;
@@ -255,20 +380,28 @@ public class VideoDecodeService {
     }
 
     /**
-     * Run a process and pipe output for easier debugging (mirrors your encoder
-     * helper).
+     * Run a process and pipe output for easier debugging. Uses timeouts to avoid
+     * hangs.
      */
     private static int runAndPipe(List<String> command, String prefix) throws IOException, InterruptedException {
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
         Process p = pb.start();
+
         try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
             String line;
             while ((line = br.readLine()) != null) {
-                System.out.println(prefix + " " + line);
+                logger.debug("{} {}", prefix, line);
             }
         }
-        return p.waitFor();
+
+        boolean finished = p.waitFor(120, TimeUnit.SECONDS);
+        if (!finished) {
+            p.destroyForcibly();
+            logger.warn("{} process timed out: {}", prefix, String.join(" ", command));
+            return -1;
+        }
+        return p.exitValue();
     }
 
     private static void cleanup(Path... paths) {

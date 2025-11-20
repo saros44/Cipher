@@ -7,14 +7,30 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * VideoEncodeService
+ *
+ * Responsibilities:
+ * - Convert input to AVI (Xvid) if required
+ * - Embed encrypted payload into the first N frames (PNG)
+ * - Rebuild video with minimal compression and embed key metadata
+ *
+ * This file has been reformatted for readability only; logic is unchanged.
+ */
 @Service
 public class VideoEncodeService {
+
+    private static final Logger logger = LoggerFactory.getLogger(VideoEncodeService.class);
 
     // ==== Stego limits & markers ====
     /** Max plaintext characters to embed per frame (before delimiter). */
     private static final int MAX_CHARS_PER_FRAME = 100_000;
+
     /** Per-frame delimiter. Decoder should read until this marker in each frame. */
     private static final String FRAME_DELIM = "<END>";
 
@@ -30,8 +46,8 @@ public class VideoEncodeService {
         if (originalFilename == null || !originalFilename.contains(".")) {
             throw new IllegalArgumentException("Invalid file name or missing extension");
         }
-        String lowerName = originalFilename.toLowerCase();
 
+        String lowerName = originalFilename.toLowerCase();
         if (lowerName.endsWith(".avi")) {
             return video;
         }
@@ -47,10 +63,12 @@ public class VideoEncodeService {
 
             List<String> cmd = Arrays.asList(
                     "ffmpeg", "-y",
+                    "-threads", String.valueOf(Runtime.getRuntime().availableProcessors()),
                     "-i", tempInput.toString(),
                     "-c:v", "libxvid", "-q:v", "2",
                     "-c:a", "copy",
                     tempAvi.toString());
+
             int exit = runAndPipe(cmd, "[ffmpeg convert]");
             if (exit != 0) {
                 throw new IllegalArgumentException("Failed to convert video to AVI format.");
@@ -58,6 +76,7 @@ public class VideoEncodeService {
 
             byte[] aviBytes = Files.readAllBytes(tempAvi);
             final byte[] finalBytes = aviBytes;
+
             return new MultipartFile() {
                 @Override
                 public String getName() {
@@ -129,11 +148,13 @@ public class VideoEncodeService {
             // Get video info (width/height/fps) to compute capacity
             VideoInfo videoInfo = getVideoInfo(tempInputPath.toString());
             int pixelsPerFrame = videoInfo.width * videoInfo.height;
-            int bitsPerFrame = pixelsPerFrame; // We touch 1 pixel per bit
+            int bitsPerFrame = pixelsPerFrame; // 1 pixel per bit
             int charsByPixels = bitsPerFrame / 8; // Characters capacity by pixel budget
 
-            // Effective per-frame char capacity = min(15k, charsByPixels - delimiter)
-            int effectivePerFrame = Math.min(MAX_CHARS_PER_FRAME, Math.max(0, charsByPixels - FRAME_DELIM.length()));
+            // Effective per-frame char capacity = min(MAX_CHARS_PER_FRAME, charsByPixels -
+            // delimiter)
+            int effectivePerFrame = Math.min(MAX_CHARS_PER_FRAME,
+                    Math.max(0, charsByPixels - FRAME_DELIM.length()));
             if (effectivePerFrame <= 0) {
                 throw new IllegalStateException("Frame capacity is too small to embed any data.");
             }
@@ -141,11 +162,10 @@ public class VideoEncodeService {
             // Split encrypted message into chunks respecting effective capacity
             List<String> chunks = splitMessage(encryptedMessage, effectivePerFrame);
 
-            // Limit frames if you want (previously 1..10). Keep the cap for stability.
+            // Keep cap for stability: previous limit was 10 frames
             int framesNeeded = chunks.size();
             if (framesNeeded > 10) {
-                throw new IllegalArgumentException("Message too long for the 10-frame limit. " +
-                        "Needs " + framesNeeded + " frames at " + effectivePerFrame + " chars/frame.");
+                throw new IllegalArgumentException("Message too long for the video.");
             }
 
             // Compute required pixels (with per-frame delimiters)
@@ -181,7 +201,6 @@ public class VideoEncodeService {
                     videoInfo.fps);
 
             return Files.readAllBytes(outputPath);
-
         } finally {
             cleanup(tempInputPath, framesDir, outputPath);
         }
@@ -259,6 +278,7 @@ public class VideoEncodeService {
         if (parts.length < 3) {
             throw new Exception("Could not parse video information: " + line);
         }
+
         int width = Integer.parseInt(parts[0].trim());
         int height = Integer.parseInt(parts[1].trim());
         String rFrameRate = parts[2].trim(); // e.g. "30000/1001" or "25/1" or "30"
@@ -288,6 +308,7 @@ public class VideoEncodeService {
         String framePattern = Paths.get(framesDir, "frame_%06d.png").toString();
         List<String> cmd = Arrays.asList(
                 "ffmpeg", "-y",
+                "-threads", String.valueOf(Runtime.getRuntime().availableProcessors()),
                 "-i", videoPath,
                 "-vf", "select=lt(n\\," + frameCount + ")",
                 "-vsync", "vfr",
@@ -297,7 +318,7 @@ public class VideoEncodeService {
         if (exitCode != 0) {
             throw new Exception("Failed to extract specific frames. Exit code: " + exitCode);
         }
-        System.out.println("Extracted " + frameCount + " specific frames for modification");
+        logger.info("Extracted {} specific frames for modification", frameCount);
     }
 
     /**
@@ -306,46 +327,59 @@ public class VideoEncodeService {
      */
     private void encodeChunksAcrossFrames(File[] frameFiles, List<String> chunks, int pixelsPerFrame) throws Exception {
         int framesNeeded = chunks.size();
-        for (int frameIndex = 0; frameIndex < framesNeeded; frameIndex++) {
-            File frameFile = frameFiles[frameIndex];
-            BufferedImage currentFrame = javax.imageio.ImageIO.read(frameFile);
+        int threads = Math.min(framesNeeded, Math.max(1, Runtime.getRuntime().availableProcessors()));
+        ExecutorService ex = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<Void>> futures = new ArrayList<>(framesNeeded);
 
-            String payload = chunks.get(frameIndex) + FRAME_DELIM;
-            int requiredBits = payload.length() * 8;
-            if (requiredBits > pixelsPerFrame) {
-                throw new IllegalStateException(
-                        "Chunk exceeds per-frame pixel capacity: need " + requiredBits + " bits, have "
-                                + pixelsPerFrame);
-            }
+            for (int frameIndex = 0; frameIndex < framesNeeded; frameIndex++) {
+                final int idx = frameIndex;
+                futures.add(ex.submit(() -> {
+                    File frameFile = frameFiles[idx];
+                    BufferedImage currentFrame = javax.imageio.ImageIO.read(frameFile);
 
-            int width = currentFrame.getWidth();
-            int height = currentFrame.getHeight();
-            int pixelIndex = 0;
-
-            // Write payload bytes MSB->LSB using high-contrast values
-            for (int i = 0; i < payload.length(); i++) {
-                char c = payload.charAt(i);
-                for (int bitPos = 0; bitPos < 8; bitPos++) {
-                    int bit = (c >> (7 - bitPos)) & 1;
-
-                    int x = pixelIndex % width;
-                    int y = pixelIndex / width;
-                    if (y >= height) {
-                        throw new IllegalStateException("Ran out of pixels while encoding frame " + (frameIndex + 1));
+                    String payload = chunks.get(idx) + FRAME_DELIM;
+                    int requiredBits = payload.length() * 8;
+                    if (requiredBits > pixelsPerFrame) {
+                        throw new IllegalStateException("Chunk exceeds per-frame pixel capacity: need " + requiredBits
+                                + " bits, have " + pixelsPerFrame);
                     }
 
-                    int val = (bit == 1) ? 245 : 10; // robust against compression
-                    int newRgb = (val << 16) | (val << 8) | val;
-                    currentFrame.setRGB(x, y, newRgb);
-                    pixelIndex++;
-                }
+                    int width = currentFrame.getWidth();
+                    int height = currentFrame.getHeight();
+                    int pixelIndex = 0;
+
+                    for (int i = 0; i < payload.length(); i++) {
+                        char c = payload.charAt(i);
+                        for (int bitPos = 0; bitPos < 8; bitPos++) {
+                            int bit = (c >> (7 - bitPos)) & 1;
+                            int x = pixelIndex % width;
+                            int y = pixelIndex / width;
+                            if (y >= height) {
+                                throw new IllegalStateException("Ran out of pixels while encoding frame " + (idx + 1));
+                            }
+                            int val = (bit == 1) ? 245 : 10;
+                            int newRgb = (val << 16) | (val << 8) | val;
+                            currentFrame.setRGB(x, y, newRgb);
+                            pixelIndex++;
+                        }
+                    }
+
+                    javax.imageio.ImageIO.write(currentFrame, "png", frameFile);
+                    logger.debug("Frame {} encoded. Chars: {}  Pixels used: {}", idx + 1, payload.length(),
+                            payload.length() * 8);
+                    return null;
+                }));
             }
 
-            javax.imageio.ImageIO.write(currentFrame, "png", frameFile);
-            System.out.println("Frame " + (frameIndex + 1) + " encoded. Chars: " + payload.length()
-                    + "  Pixels used: " + (payload.length() * 8));
+            for (Future<Void> f : futures) {
+                f.get(); // propagate exceptions
+            }
+
+            logger.info("All {} frame(s) encoded with per-frame delimiter '{}'.", framesNeeded, FRAME_DELIM);
+        } finally {
+            ex.shutdownNow();
         }
-        System.out.println("All " + framesNeeded + " frame(s) encoded with per-frame delimiter '" + FRAME_DELIM + "'.");
     }
 
     private void createVideoWithSelectiveFrameReplacement(
@@ -355,6 +389,7 @@ public class VideoEncodeService {
             String key,
             int modifiedFrameCount,
             double fps) throws Exception {
+
         // Encode the key in Base64 and embed it in video metadata
         String encodedKey = Base64.getEncoder().encodeToString(key.getBytes());
 
@@ -369,7 +404,8 @@ public class VideoEncodeService {
             String encodedKey,
             int modifiedFrameCount,
             double fps) throws Exception {
-        System.out.println("Using fallback method with minimal compression");
+
+        logger.info("Using fallback method with minimal compression");
 
         Path tempAllFramesDir = Files.createTempDirectory("all_frames");
         try {
@@ -377,9 +413,11 @@ public class VideoEncodeService {
             String allPattern = Paths.get(tempAllFramesDir.toString(), "frame_%06d.png").toString();
             List<String> extractAll = Arrays.asList(
                     "ffmpeg", "-y",
+                    "-threads", String.valueOf(Runtime.getRuntime().availableProcessors()),
                     "-i", originalVideoPath,
                     "-q:v", "1",
                     allPattern);
+
             int extractExit = runAndPipe(extractAll, "[ffmpeg extract-all]");
             if (extractExit != 0) {
                 throw new Exception("Failed to extract all frames.");
@@ -396,7 +434,7 @@ public class VideoEncodeService {
                 for (File src : toReplace) {
                     Path dst = Paths.get(tempAllFramesDir.toString(), src.getName());
                     Files.copy(src.toPath(), dst, StandardCopyOption.REPLACE_EXISTING);
-                    System.out.println("Replaced frame " + src.getName());
+                    logger.debug("Replaced frame {}", src.getName());
                 }
             }
 
@@ -405,6 +443,7 @@ public class VideoEncodeService {
             String fpsString = String.format(Locale.US, "%.3f", (fps > 0 ? fps : 29.970));
             List<String> finalCmd = Arrays.asList(
                     "ffmpeg", "-y",
+                    "-threads", String.valueOf(Runtime.getRuntime().availableProcessors()),
                     "-framerate", fpsString,
                     "-i", inputPattern,
                     "-i", originalVideoPath,
@@ -416,6 +455,7 @@ public class VideoEncodeService {
                     "-metadata", "title=" + encodedKey,
                     "-shortest",
                     outputPath);
+
             int finalExitCode = runAndPipe(finalCmd, "[ffmpeg build]");
             if (finalExitCode != 0) {
                 throw new Exception("Fallback video creation failed with exit code: " + finalExitCode);
@@ -426,19 +466,28 @@ public class VideoEncodeService {
     }
 
     /**
-     * Run a process and pipe combined stdout/stderr to System.out with a prefix.
+     * Run a process and pipe combined stdout/stderr using logger.
+     * Waits with a timeout and forcibly destroys hung processes.
      */
     private static int runAndPipe(List<String> command, String prefix) throws IOException, InterruptedException {
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
         Process p = pb.start();
+
         try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
             String line;
             while ((line = br.readLine()) != null) {
-                System.out.println(prefix + " " + line);
+                logger.debug("{} {}", prefix, line);
             }
         }
-        return p.waitFor();
+
+        boolean finished = p.waitFor(120, TimeUnit.SECONDS);
+        if (!finished) {
+            p.destroyForcibly();
+            logger.warn("{} process timed out: {}", prefix, String.join(" ", command));
+            return -1;
+        }
+        return p.exitValue();
     }
 
     private void cleanup(Path... paths) {

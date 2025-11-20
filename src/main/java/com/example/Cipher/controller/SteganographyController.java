@@ -152,7 +152,7 @@ public class SteganographyController {
         String originalFilename = video.getOriginalFilename();
 
         try {
-            // Move conversion logic to service
+
             MultipartFile aviFile = videoEncodeService.convertToAviIfNeeded(video);
 
             VideoEncodeService.EncodingResult result = videoEncodeService.encodeWithMetrics(aviFile, message, key);
