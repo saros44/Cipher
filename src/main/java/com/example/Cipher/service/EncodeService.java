@@ -16,13 +16,12 @@ public class EncodeService {
 
     private static final int AES_KEY_SIZE = 16; // AES key size in bytes (128 bits)
 
-    // Fully hardcoded positions table (example provided by user)
     // Positions are linear indices inside a block, row-major order.
-    private static final int[][] BLOCK_POSITIONS = new int[][]{
-            {0, 3, 5, 12, 15, 7, 2, 10},
-            {1, 4, 6, 13, 14, 8, 9, 11},
-            {2, 5, 7, 0, 12, 6, 1, 14},
-            {3, 6, 0, 9, 15, 2, 4, 11}
+    private static final int[][] BLOCK_POSITIONS = new int[][] {
+            { 0, 3, 5, 12, 15, 7, 2, 10 },
+            { 1, 4, 6, 13, 14, 8, 9, 11 },
+            { 2, 5, 7, 0, 12, 6, 1, 14 },
+            { 3, 6, 0, 9, 15, 2, 4, 11 }
     };
 
     public byte[] encodeMessage(MultipartFile image, String message, String secretKey) throws Exception {
@@ -53,25 +52,29 @@ public class EncodeService {
         int blocksX = (width + 7) / 8; // ceil(width/8)
         int blocksY = (availableHeight + 7) / 8; // ceil((height-1)/8)
 
-        // Compute exact capacity in bits: one bit per block that has at least one valid position
+        // Compute exact capacity in bits: one bit per block that has at least one valid
+        // position
         int capacityBits = 0;
         for (int by = 0; by < blocksY; by++) {
             for (int bx = 0; bx < blocksX; bx++) {
                 int startX = bx * 8;
                 int blockW = Math.min(8, width - startX);
                 int blockH = Math.min(8, (height - 1) - by * 8);
-                if (blockW <= 0 || blockH <= 0) continue;
+                if (blockW <= 0 || blockH <= 0)
+                    continue;
                 int rowIdx = (bx + by) % BLOCK_POSITIONS.length;
                 int[] positions = BLOCK_POSITIONS[rowIdx];
                 boolean hasValid = false;
                 for (int p : positions) {
                     int localX = p % 8;
                     int localY = p / 8;
-                    if (localX >= blockW || localY >= blockH) continue;
+                    if (localX >= blockW || localY >= blockH)
+                        continue;
                     hasValid = true;
                     break;
                 }
-                if (hasValid) capacityBits++;
+                if (hasValid)
+                    capacityBits++;
             }
         }
 
@@ -120,7 +123,8 @@ public class EncodeService {
         }
     }
 
-    // Parity-per-block embedding: for each block, compute parity of LSBs of carriers and flip one carrier LSB if needed
+    // Parity-per-block embedding: for each block, compute parity of LSBs of
+    // carriers and flip one carrier LSB if needed
     private BufferedImage encodeMessageIntoImage(BufferedImage image, String message) {
         int width = image.getWidth();
         int height = image.getHeight();
@@ -135,21 +139,21 @@ public class EncodeService {
             }
         }
 
-        int msgIndex = 0;      // byte index in message-as-String (ISO-8859-1 compatible)
-        int bitIndex = 0;      // bit position within current byte (0..7), MSB first
+        int msgIndex = 0; // byte index in message-as-String (ISO-8859-1 compatible)
+        int bitIndex = 0; // bit position within current byte (0..7), MSB first
 
         int availableHeight = height - 1; // exclude first row (y=0) to preserve AES key row entirely
         int blocksX = (width + 7) / 8;
         int blocksY = (availableHeight + 7) / 8;
 
-        outer:
-        for (int by = 0; by < blocksY; by++) {
+        outer: for (int by = 0; by < blocksY; by++) {
             for (int bx = 0; bx < blocksX; bx++) {
                 int startX = bx * 8;
                 int startY = 1 + by * 8; // start from row 1 to avoid the key row
                 int blockW = Math.min(8, width - startX);
                 int blockH = Math.min(8, (height - 1) - by * 8);
-                if (blockW <= 0 || blockH <= 0) continue;
+                if (blockW <= 0 || blockH <= 0)
+                    continue;
 
                 int rowIdx = (bx + by) % BLOCK_POSITIONS.length; // i.e., % 4
                 int[] positions = BLOCK_POSITIONS[rowIdx];
@@ -160,7 +164,8 @@ public class EncodeService {
                 for (int p : positions) {
                     int localX = p % 8;
                     int localY = p / 8;
-                    if (localX >= blockW || localY >= blockH) continue;
+                    if (localX >= blockW || localY >= blockH)
+                        continue;
                     int px = startX + localX;
                     int py = startY + localY;
                     int rgb = encodedImage.getRGB(px, py);
@@ -172,7 +177,8 @@ public class EncodeService {
                     }
                 }
 
-                if (firstPosX == -1) continue; // no carriers in this block
+                if (firstPosX == -1)
+                    continue; // no carriers in this block
 
                 if (msgIndex < message.length()) {
                     int currentByte = message.charAt(msgIndex) & 0xFF;

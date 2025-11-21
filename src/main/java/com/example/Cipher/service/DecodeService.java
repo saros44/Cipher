@@ -18,12 +18,11 @@ public class DecodeService {
     private static final int AES_KEY_SIZE = 16; // AES key size in bytes (128 bits)
     private static final Logger logger = LoggerFactory.getLogger(DecodeService.class);
 
-    // Fully hardcoded positions table matching the encoder
-    private static final int[][] BLOCK_POSITIONS = new int[][]{
-            {0, 3, 5, 12, 15, 7, 2, 10},
-            {1, 4, 6, 13, 14, 8, 9, 11},
-            {2, 5, 7, 0, 12, 6, 1, 14},
-            {3, 6, 0, 9, 15, 2, 4, 11}
+    private static final int[][] BLOCK_POSITIONS = new int[][] {
+            { 0, 3, 5, 12, 15, 7, 2, 10 },
+            { 1, 4, 6, 13, 14, 8, 9, 11 },
+            { 2, 5, 7, 0, 12, 6, 1, 14 },
+            { 3, 6, 0, 9, 15, 2, 4, 11 }
     };
 
     public String decodeMessage(MultipartFile imageFile, String key) throws IOException {
@@ -86,14 +85,14 @@ public class DecodeService {
         int blocksX = (width + 7) / 8;
         int blocksY = (availableHeight + 7) / 8;
 
-        outer:
-        for (int by = 0; by < blocksY; by++) {
+        outer: for (int by = 0; by < blocksY; by++) {
             for (int bx = 0; bx < blocksX; bx++) {
                 int startX = bx * 8;
                 int startY = 1 + by * 8; // start from y=1
                 int blockW = Math.min(8, width - startX);
                 int blockH = Math.min(8, (height - 1) - by * 8);
-                if (blockW <= 0 || blockH <= 0) continue;
+                if (blockW <= 0 || blockH <= 0)
+                    continue;
 
                 int rowIdx = (bx + by) % BLOCK_POSITIONS.length; // deterministic selection
                 int[] positions = BLOCK_POSITIONS[rowIdx];
@@ -104,7 +103,8 @@ public class DecodeService {
                 for (int p : positions) {
                     int localX = p % 8;
                     int localY = p / 8;
-                    if (localX >= blockW || localY >= blockH) continue;
+                    if (localX >= blockW || localY >= blockH)
+                        continue;
                     int px = startX + localX;
                     int py = startY + localY;
                     int rgb = encodedImage.getRGB(px, py);
@@ -113,7 +113,8 @@ public class DecodeService {
                     hasCarrier = true;
                 }
 
-                if (!hasCarrier) continue;
+                if (!hasCarrier)
+                    continue;
 
                 // Use parity as the extracted bit (MSB-first ordering across bytes)
                 int bit = parity & 1;
