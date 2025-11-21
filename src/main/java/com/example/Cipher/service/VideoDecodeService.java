@@ -49,7 +49,7 @@ public class VideoDecodeService {
      */
     public String decode(MultipartFile videoFile, String key) throws Exception {
         if (key == null || key.length() < 8) {
-            throw new IllegalArgumentException("Secret key must be at least 8 characters long.");
+            throw new IllegalArgumentException("Secret key must be at least 16 characters long.");
         }
         if (videoFile == null || videoFile.isEmpty()) {
             throw new IllegalArgumentException("Video file must not be empty.");

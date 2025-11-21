@@ -113,7 +113,7 @@ public class VideoEncodeService {
 
     public byte[] encode(MultipartFile videoFile, String message, String key) throws Exception {
         if (key == null || key.length() < 8) {
-            throw new IllegalArgumentException("Secret key must be at least 8 characters long.");
+            throw new IllegalArgumentException("Secret key must be at least 16 characters long.");
         }
         if (message == null || message.isEmpty()) {
             throw new IllegalArgumentException("Message must not be empty.");
