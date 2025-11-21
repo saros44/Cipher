@@ -20,33 +20,13 @@ public class VideoDecodeService {
 
     private static final Logger logger = LoggerFactory.getLogger(VideoDecodeService.class);
 
-    /**
-     * Per-frame delimiter that marks the end of the chunk in each modified frame.
-     */
+
     private static final String FRAME_DELIM = "<END>";
 
-    /**
-     * Intensity threshold to decide bit value (robust vs. 10/245 encoding and Xvid
-     * -q:v 2).
-     */
     private static final int BIT_THRESHOLD = 128;
 
-    /** Optional: how many frames at most to scan before giving up (safety). */
     private static final int MAX_FRAMES_TO_SCAN = 10_000;
 
-    /**
-     * Decode the hidden message from the provided video using the given secret key.
-     *
-     * Steps:
-     * 1) Save upload to temp file
-     * 2) Fast metadata check (ffprobe) for Base64(key)
-     * 3) Extract frames losslessly to PNG
-     * 4) Read pixels in raster order: 1 pixel = 1 bit (8 bits = 1 char, MSB→LSB)
-     * 5) For each frame, collect chars until FRAME_DELIM; append chunk and stop at
-     * first frame without delimiter
-     * 6) Concatenate chunks and decrypt with VideoEncryptionUtil.decrypt(cipher,
-     * key)
-     */
     public String decode(MultipartFile videoFile, String key) throws Exception {
         if (key == null || key.length() < 8) {
             throw new IllegalArgumentException("Secret key must be at least 16 characters long.");
