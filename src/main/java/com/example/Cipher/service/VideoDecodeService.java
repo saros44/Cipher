@@ -15,22 +15,11 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * VideoDecodeService
- *
- * Responsibilities:
- * - Fast metadata check for Base64(key) in title tag
- * - Extract frames (PNG) and decode per-frame payload
- * - Parallel per-frame decoding while preserving order and early stop
- *
- * Reformatting only; logic unchanged.
- */
 @Service
 public class VideoDecodeService {
 
     private static final Logger logger = LoggerFactory.getLogger(VideoDecodeService.class);
 
-    // ==== Must match the encoder ====
     /**
      * Per-frame delimiter that marks the end of the chunk in each modified frame.
      */
@@ -188,13 +177,13 @@ public class VideoDecodeService {
                 if (titleMeta != null && !titleMeta.isEmpty()) {
                     String expected = Base64.getEncoder().encodeToString(key.getBytes());
                     if (!expected.equals(titleMeta)) {
-                        throw new IllegalArgumentException("Provided key does not match video metadata.");
+                        throw new IllegalArgumentException("Provided key does not match.");
                     }
                 }
             } catch (IllegalArgumentException e) {
                 throw e;
             } catch (Exception e) {
-                logger.debug("Metadata key-check failed or unavailable: {}", e.getMessage());
+                logger.debug("Key-check failed or unavailable: {}", e.getMessage());
             }
 
             framesDir = Files.createTempDirectory("decoded_frames_");
@@ -250,8 +239,6 @@ public class VideoDecodeService {
         }
     }
 
-    // ===================== Internals =====================
-
     private static String safeName(String name) {
         if (name == null)
             return null;
@@ -274,10 +261,6 @@ public class VideoDecodeService {
         }
     }
 
-    /**
-     * Read the `title` metadata tag (where encoder stores Base64(key)).
-     * Returns null if tag absent or ffprobe fails.
-     */
     private static String readTitleMetadataFromFile(String videoPath) throws Exception {
         List<String> cmd = Arrays.asList(
                 "ffprobe", "-v", "error",

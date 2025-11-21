@@ -81,7 +81,6 @@ public class SteganographyController {
 
         try {
 
-            // Encode the message into the WAV audio file
             WavSteganography.SteganographyResult result = wavSteganography.encodeMessageIntoWav(audio, message, key);
 
             // Prepare the response with Base64-encoded audio and SNR stages
@@ -121,7 +120,6 @@ public class SteganographyController {
             @RequestParam("key") String key) {
 
         try {
-            // Attempt to decode the audio message
             String message = wavSteganographyDecoder.decodeMessageFromWav(audio, key);
             return ResponseEntity.ok(message);
         } catch (IllegalArgumentException e) {

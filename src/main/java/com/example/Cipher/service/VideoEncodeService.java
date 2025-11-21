@@ -12,26 +12,13 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * VideoEncodeService
- *
- * Responsibilities:
- * - Convert input to AVI (Xvid) if required
- * - Embed encrypted payload into the first N frames (PNG)
- * - Rebuild video with minimal compression and embed key metadata
- *
- * This file has been reformatted for readability only; logic is unchanged.
- */
 @Service
 public class VideoEncodeService {
 
     private static final Logger logger = LoggerFactory.getLogger(VideoEncodeService.class);
 
-    // ==== Stego limits & markers ====
-    /** Max plaintext characters to embed per frame (before delimiter). */
     private static final int MAX_CHARS_PER_FRAME = 100_000;
 
-    /** Per-frame delimiter. Decoder should read until this marker in each frame. */
     private static final String FRAME_DELIM = "<END>";
 
     private final VideoQualityMetrics videoQualityMetrics;
@@ -239,8 +226,6 @@ public class VideoEncodeService {
             safeDelete(tempInputPath);
         }
     }
-
-    // ===================== Internals =====================
 
     /** Split message into chunks up to perFrameLimit characters. */
     private List<String> splitMessage(String msg, int perFrameLimit) {
